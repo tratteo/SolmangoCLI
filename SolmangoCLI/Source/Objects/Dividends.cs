@@ -4,7 +4,7 @@ using System;
 namespace SolmangoCLI;
 
 [Serializable]
-public class Holders
+public class Dividends
 {
     [JsonProperty("holders")]
     public ShareHolder[] HoldersArray { get; init; }

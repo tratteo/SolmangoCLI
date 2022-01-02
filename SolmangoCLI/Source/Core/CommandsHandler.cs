@@ -73,7 +73,7 @@ public static class CommandsHandler
     {
         Account fundAccount = new Account(options.PreferencesOptions.FundPrivateKey, options.PreferencesOptions.FundPublicKey);
         string holderFileName = handler.GetPositional(0);
-        if (!Serializer.DeserializeJson(string.Empty, holderFileName, out Holders holders))
+        if (!Serializer.DeserializeJson(string.Empty, holderFileName, out Dividends holders))
         {
             logger.LogError($"Unable to find holders file: {holderFileName}");
             return;
@@ -127,7 +127,7 @@ public static class CommandsHandler
         }
         ulong totalFees = clusterSnapshot.FeesInfo.FeeCalculator.LamportsPerSignature * (ulong)holders.HoldersArray.Length;
 
-        ulong balance = 6300 * 1_000_000_000L;//  balanceRes.Result.Value;
+        ulong balance = balanceRes.Result.Value;
         ulong amountPerShare = (ulong)((balance - totalFees) / 100F);
         int successCount = 0;
         logger.LogInfo($"Fund balance: {balance.ToSOL()}\nTotal estimated fees: {totalFees.ToSOL()} SOL\nPer share: {amountPerShare.ToSOL()} SOL", ConsoleColor.DarkMagenta);

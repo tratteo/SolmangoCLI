@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Fleck" Version="1.2.0" />
+    <PackageReference Include="BetterHaveIt" Version="1.0.3" />
     <PackageReference Include="HandierCli" Version="1.0.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="SolmangoNET" Version="1.0.1" />
@@ -27,6 +27,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Update="application.Designer.cs">
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>application.settings</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="application.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>application.Designer.cs</LastGenOutput>
+    </None>
     <None Update="res\assets\neonCloudsLogo512.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

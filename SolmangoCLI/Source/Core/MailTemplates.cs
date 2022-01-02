@@ -22,7 +22,6 @@ public static class MailTemplates
             .Text(
                 @$"Cheers {holder.Name}!<br>
                 We want to thank you again for having invested with us!<br><br>
-
                 Dividends have been distributed, and we are proud to communicate that
                 <h2 style='color:#ed6cff';>{solAmount} SOL</h2>
                 has been sent to your wallet <b>{holder.Address}</b><br>")
