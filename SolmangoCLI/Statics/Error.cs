@@ -1,7 +1,7 @@
 ﻿using HandierCli;
 using System;
 
-namespace SolmangoCLI;
+namespace SolmangoCLI.Statics;
 
 public static class Error
 {

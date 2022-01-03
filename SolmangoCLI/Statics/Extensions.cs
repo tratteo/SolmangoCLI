@@ -1,4 +1,4 @@
-﻿namespace SolmangoCLI;
+﻿namespace SolmangoCLI.Statics;
 
 public static class Extensions
 {

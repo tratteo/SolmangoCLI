@@ -5,7 +5,7 @@ using System.Collections.Immutable;
 namespace SolmangoCLI;
 
 [Serializable]
-internal class CollectionData
+public class CollectionData
 {
     [JsonProperty("name")]
     public string Name { get; init; }

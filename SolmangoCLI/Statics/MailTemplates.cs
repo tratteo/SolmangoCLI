@@ -4,7 +4,7 @@ using System.Net.Mail;
 using System.Net.Mime;
 using System.Text;
 
-namespace SolmangoCLI;
+namespace SolmangoCLI.Statics;
 
 public static class MailTemplates
 {

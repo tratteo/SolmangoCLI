@@ -1,5 +1,4 @@
 ﻿using Newtonsoft.Json;
-using Solnet.Wallet;
 using System;
 
 namespace SolmangoCLI;
