@@ -19,17 +19,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="BetterHaveIt" Version="1.0.3" />
+    <PackageReference Include="BetterHaveIt" Version="1.0.4" />
     <PackageReference Include="HandierCli" Version="1.0.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="6.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="SolmangoNET" Version="1.0.1" />
-    <PackageReference Include="Solnet.Extensions" Version="0.4.17" />
-    <PackageReference Include="Solnet.KeyStore" Version="0.4.17" />
-    <PackageReference Include="Solnet.Programs" Version="0.4.17" />
-    <PackageReference Include="Solnet.Rpc" Version="0.4.17" />
-    <PackageReference Include="Solnet.Wallet" Version="0.4.17" />
+    <PackageReference Include="Solnet.Extensions" Version="0.4.18" />
+    <PackageReference Include="Solnet.KeyStore" Version="0.4.18" />
+    <PackageReference Include="Solnet.Programs" Version="0.4.18" />
+    <PackageReference Include="Solnet.Rpc" Version="0.4.18" />
+    <PackageReference Include="Solnet.Wallet" Version="0.4.18" />
   </ItemGroup>
 
   <ItemGroup>

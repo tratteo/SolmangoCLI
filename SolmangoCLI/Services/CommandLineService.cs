@@ -29,13 +29,13 @@ public class CommandLineService : ICoreRunner
     {
         Cli = CommandLine.Factory().ExitOn("exit", "quit").OnUnrecognized(cmd => Logger.ConsoleInstance.LogError($"{cmd} not recognized")).Build();
         Cli.Register(Command.Factory("scrape")
-        .Description("Scrape NFTs collections by name, symbol and candyMachineId")
+        .Description("Scrape NFTs collections by name, symbol and updateAuthority")
         .ArgumentsHandler(
             ArgumentsHandler.Factory()
             .Positional("out file name")
             .Keyed("-n", "collection name")
             .Keyed("-s", "collection symbol")
-            .Keyed("-u", "candy machine id")
+            .Keyed("-u", "update authority")
             .Keyed("-d", "Solana cluster"))
         .AddAsync(async (handler) => await CommandsHandler.ScrapeCommand(handler, services, logger)));
 
@@ -49,7 +49,7 @@ public class CommandLineService : ICoreRunner
             .AddAsync(async (handler) => await CommandsHandler.DistributeDividends(handler, services, logger)));
 
         Cli.Register(Command.Factory("activity")
-            .Description($"send all the balance to the fund wallet")
+            .Description("execute an activity")
             .ArgumentsHandler(ArgumentsHandler.Factory().Positional("activity id").Keyed("-d", "Solana cluster"))
             .AddAsync(async (handler) => await CommandsHandler.ExecuteActivity(handler, services, logger)));
 

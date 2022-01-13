@@ -29,6 +29,7 @@ public static class CommandsHandler
         handler.GetKeyed("-n", out var name);
         handler.GetKeyed("-s", out var symbol);
         handler.GetKeyed("-u", out var updateAuthority);
+        if ((name == null || name == string.Empty) && (symbol == null || symbol == string.Empty) && (updateAuthority == null || updateAuthority == string.Empty)) return;
         if (!ParseCluster(handler, configuration, logger, out var cluster)) return;
 
         IRpcClient rpcClient = ClientFactory.GetClient(cluster);

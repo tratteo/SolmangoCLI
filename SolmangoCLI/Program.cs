@@ -37,7 +37,6 @@ internal class Program
                 });
             })
             .Build();
-        Console.WriteLine($"{host.Services.GetService<IConfiguration>().GetSection("Preferences:EnableEmail").Get<bool>()}");
         var core = host.Services.GetService<CommandLineService>();
         if (core != null)
         {
