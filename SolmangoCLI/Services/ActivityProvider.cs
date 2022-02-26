@@ -1,6 +1,7 @@
 ﻿using BetterHaveIt.DataStructures;
 using Microsoft.Extensions.Configuration;
 using SolmangoCLI.DecentralizedActivities;
+using SolmangoNET.Rpc;
 
 namespace SolmangoCLI.Services;
 

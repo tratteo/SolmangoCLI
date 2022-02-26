@@ -16,7 +16,7 @@ public class CommandLineService : ICoreRunner
 
     public CommandLine Cli { get; private set; }
 
-    public CommandLineService(IServiceProvider services, ILogger<CommandLineService> logger, IConfiguration configuration)
+    public CommandLineService(IServiceProvider services, ILogger<CommandLineService> logger)
     {
         this.services = services;
         this.logger = logger;
