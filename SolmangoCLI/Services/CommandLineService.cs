@@ -57,5 +57,9 @@ public class CommandLineService : ICoreRunner
             .Description("display the available commands")
             .InhibitHelp()
             .Add((handler) => Console.WriteLine(Cli.Print())));
+
+        Cli.Register(Command.Factory("airdrop")
+            .Description("test")
+            .AddAsync(async (handler) => await CommandsHandler.AirdropToHolders(logger, "BSMhJs3m3BAS1A83oSheF32JAYnCo3tPeohZrRHcya5o", "4R9JiktMdTyxgX2ezd7iiscaRMHXsKeh3VM99e9eepoK", new Solnet.Wallet.Account("118NUZLXcRt8TyJo21TXA4C9BrTuXEBFfKgFtk7vSgHuuJ4iz2rKfmyeHGz45SoktgkTpdXss1KkNPqecx8NFNk", "EX2teQbpUAYjwcfmup9mJabqXgNLyVB1bhmFMyj7imXz"), "A48RTo99QPH9qGyqSWhPPykViPwF9msJtX77TnufgMcK")));
     }
 }
