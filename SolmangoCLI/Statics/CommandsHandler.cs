@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using SolmangoCLI.Settings;
 using SolmangoNET;
 using SolmangoNET.Rpc;
@@ -15,6 +16,7 @@ using Solnet.Wallet;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -53,6 +55,52 @@ public static class CommandsHandler
         var (path, fileName) = PathExtensions.Split(handler.GetPositional(0));
         logger.LogInformation($"Found {mints.Count} mints, result -> {path + fileName}");
         Serializer.SerializeJson(path, fileName, ImmutableList.CreateRange(from e in mints select e.Item1));
+    }
+
+    public static async Task<bool> RetriveHolders(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
+    {
+        var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
+        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
+        try
+        {
+            var hash = File.ReadAllText(handler.GetPositional(0));
+            var hashList = JsonConvert.DeserializeObject<ImmutableList<string>>(hash);
+            ConsoleProgressBar progressBar = new ConsoleProgressBar(50);
+            if (hashList != null && hashList.Count > 0)
+            {
+                var res = await SolmangoNET.Solmango.GetOwnersByCollection(rpcClient, hashList, progressBar);
+                if (res.TryPickT1(out var ex, out var owners))
+                {
+                    logger.LogError(ex.Reason);
+                    return false;
+                }
+                var json = JsonConvert.SerializeObject(owners, Formatting.Indented);
+                File.WriteAllText(handler.GetPositional(1), json);
+                int sum = 0;
+                foreach (var pair in owners)
+                {
+                    sum += pair.Value.Count;
+                }
+                progressBar.Dispose();
+                logger.LogInformation("Found {holders} holders after performing scraping on {sum} mints ", owners.Keys.Count, sum);
+                return true;
+            }
+            else
+            {
+                logger.LogError("Couldn't find the hash list path or the file is empty");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex.Message);
+            return false;
+        }
+    }
+
+    public static async Task<bool> DistributeTokens(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
+    {
+        return true;
     }
 
     public static async Task<RequestResult<string>> AirdropToHolders(ILogger logger, string sourceTokenAccount, string toWalletAccount, Account sourceAccountOwner, string tokenMint, ulong ammount = 1)
