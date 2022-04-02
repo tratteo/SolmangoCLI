@@ -3,23 +3,14 @@ using HandierCli;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using SolmangoCLI.DecentralizedActivities;
-using SolmangoCLI.Objects;
-using SolmangoCLI.Services;
-using SolmangoNET;
-using SolmangoNET.Rpc;
-using Solnet.Programs;
-using Solnet.Programs.Models.TokenProgram;
-using Solnet.Rpc;
-using Solnet.Rpc.Builders;
-using Solnet.Rpc.Core.Http;
-using Solnet.Rpc.Messages;
-using Solnet.Rpc.Models;
 using Microsoft.Extensions.Options;
 using SolmangoCLI.Settings;
 using SolmangoNET;
 using SolmangoNET.Rpc;
+using Solnet.Programs;
 using Solnet.Rpc;
+using Solnet.Rpc.Builders;
+using Solnet.Rpc.Core.Http;
 using Solnet.Wallet;
 using System;
 using System.Collections.Generic;
@@ -64,25 +55,13 @@ public static class CommandsHandler
         Serializer.SerializeJson(path, fileName, ImmutableList.CreateRange(from e in mints select e.Item1));
     }
 
-   
-    public static async Task AirdddropToHolders(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
-    {
-        IConfiguration configuration = services.GetService<IConfiguration>();
-        //if (!ParseCluster(handler, configuration, logger, out var cluster)) return;
-        IRpcClient rpcClient = ClientFactory.GetClient("https://api.devnet.solana.com");
-        //var hashList = handler.GetPositional(0);
-        //var holderList = handler.GetPositional(1);
-        //Account fundAccount = new Account(configuration.GetSection("Keys:FundPrivate").Get<string>(), configuration.GetSection("Keys:FundPublic").Get<string>());
-        Account fundAccount = new Account("118NUZLXcRt8TyJo21TXA4C9BrTuXEBFfKgFtk7vSgHuuJ4iz2rKfmyeHGz45SoktgkTpdXss1KkNPqecx8NFNk", "EX2teQbpUAYjwcfmup9mJabqXgNLyVB1bhmFMyj7imXz");
-    }
-
     public static async Task<RequestResult<string>> AirdropToHolders(ILogger logger, string sourceTokenAccount, string toWalletAccount, Account sourceAccountOwner, string tokenMint, ulong ammount = 1)
     {
-        IRpcClient activeRpcClient = ClientFactory.GetClient("https://api.devnet.solana.com");
-        RequestResult<ResponseValue<BlockHash>> blockHash = await activeRpcClient.GetRecentBlockHashAsync();
-        RequestResult<ulong> rentExemptionAmmount = await activeRpcClient.GetMinimumBalanceForRentExemptionAsync(TokenProgram.TokenAccountDataSize);
+        var activeRpcClient = ClientFactory.GetClient("https://api.devnet.solana.com");
+        var blockHash = await activeRpcClient.GetRecentBlockHashAsync();
+        var rentExemptionAmmount = await activeRpcClient.GetMinimumBalanceForRentExemptionAsync(TokenProgram.TokenAccountDataSize);
 
-        List<Solnet.Rpc.Models.TokenAccount> lortAccounts = await GetOwnedTokenAccounts(toWalletAccount, tokenMint, "", activeRpcClient);
+        var lortAccounts = await GetOwnedTokenAccounts(toWalletAccount, tokenMint, "", activeRpcClient);
         byte[] transaction;
         if (lortAccounts != null && lortAccounts.Count > 0)
         {
@@ -102,7 +81,7 @@ public static class CommandsHandler
                 SystemProgram.CreateAccount(
                     sourceAccountOwner.PublicKey,
                     newAccKeypair.PublicKey,
-                    (ulong)rentExemptionAmmount.Result,
+                    rentExemptionAmmount.Result,
                     TokenProgram.TokenAccountDataSize,
                     TokenProgram.ProgramIdKey)).
                 AddInstruction(
@@ -133,43 +112,5 @@ public static class CommandsHandler
             return result.Result.Value;
         }
         return null;
-    }
-
-    private static bool ParseCluster(ArgumentsHandler handler, IConfiguration configuration, ILogger logger, out Cluster cluster)
-    {
-        cluster = Cluster.DevNet;
-        if (handler.GetKeyed("-d", out var network))
-        {
-            try
-            {
-                cluster = Enum.Parse<Cluster>(network);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError($"Unable to parse RPC client: {ex}");
-                try
-                {
-                    cluster = Enum.Parse<Cluster>(configuration.GetSection("Preferences:DefaultCluster").Get<string>());
-                }
-                catch (Exception e)
-                {
-                    logger.LogError($"Unable to parse RPC client from options file: {e.ToString()}");
-                    return false;
-                }
-            }
-        }
-        else
-        {
-            try
-            {
-                cluster = Enum.Parse<Cluster>(configuration.GetSection("Preferences:DefaultCluster").Get<string>());
-            }
-            catch (Exception e)
-            {
-                logger.LogError($"Unable to parse RPC client from options file: {e}");
-                return false;
-            }
-        }
-        return true;
     }
 }
