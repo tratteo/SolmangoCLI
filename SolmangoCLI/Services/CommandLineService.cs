@@ -54,9 +54,9 @@ public class CommandLineService : ICoreRunner
             .AddAsync(async (handler) => await CommandsHandler.RetriveHolders(handler, services, logger)));
 
         Cli.Register(Command.Factory("distribute-tokens")
-            .Description("Distribute the given mint to a list of addresses")
+            .Description("Distribute the given mint to a list of addresses stored in a dictionary")
             .ArgumentsHandler(ArgumentsHandler.Factory()
-            .Positional("The path to the wallet keys")
+            .Positional("The path to the source wallet keypair file")
             .Positional("The token mint to distribute")
             .Positional("The address dictionary to distribute to"))
             .AddAsync(async (handler) => await CommandsHandler.DistributeTokens(handler, services, logger)));

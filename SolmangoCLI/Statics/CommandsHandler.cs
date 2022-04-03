@@ -5,9 +5,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
+using SolmangoCLI.Objects;
 using SolmangoCLI.Settings;
 using SolmangoNET;
 using SolmangoNET.Rpc;
+using Solnet.KeyStore;
 using Solnet.Programs;
 using Solnet.Rpc;
 using Solnet.Rpc.Builders;
@@ -65,15 +67,17 @@ public static class CommandsHandler
         {
             var hash = File.ReadAllText(handler.GetPositional(0));
             var hashList = JsonConvert.DeserializeObject<ImmutableList<string>>(hash);
-            ConsoleProgressBar progressBar = new ConsoleProgressBar(50);
             if (hashList != null && hashList.Count > 0)
             {
+                ConsoleProgressBar progressBar = new ConsoleProgressBar(50);
                 var res = await SolmangoNET.Solmango.GetOwnersByCollection(rpcClient, hashList, progressBar);
                 if (res.TryPickT1(out var ex, out var owners))
                 {
                     logger.LogError(ex.Reason);
+                    progressBar.Dispose();
                     return false;
                 }
+                progressBar.Dispose();
                 var json = JsonConvert.SerializeObject(owners, Formatting.Indented);
                 File.WriteAllText(handler.GetPositional(1), json);
                 int sum = 0;
@@ -81,7 +85,7 @@ public static class CommandsHandler
                 {
                     sum += pair.Value.Count;
                 }
-                progressBar.Dispose();
+
                 logger.LogInformation("Found {holders} holders after performing scraping on {sum} mints ", owners.Keys.Count, sum);
                 return true;
             }
@@ -100,65 +104,25 @@ public static class CommandsHandler
 
     public static async Task<bool> DistributeTokens(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
+        var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
+        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
+        ConsoleProgressBar progressBar = new ConsoleProgressBar();
+
+        var hash = File.ReadAllText(handler.GetPositional(0));
+        //gets keys
+        var keys = JsonConvert.DeserializeObject<KeyPair>(hash);
+        Account sender = new Account(keys!.PublicKey, keys.PrivateKey);
+        //gets dictionary
+        var str = File.ReadAllText(handler.GetPositional(2));
+        var dic = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(str);
+
+        //gets sender tokenaccount
+
+        foreach (var pair in dic)
+        {
+            var res = await Solmango.SendSplToken(rpcClient,)
+            }
+
         return true;
-    }
-
-    public static async Task<RequestResult<string>> AirdropToHolders(ILogger logger, string sourceTokenAccount, string toWalletAccount, Account sourceAccountOwner, string tokenMint, ulong ammount = 1)
-    {
-        var activeRpcClient = ClientFactory.GetClient("https://api.devnet.solana.com");
-        var blockHash = await activeRpcClient.GetRecentBlockHashAsync();
-        var rentExemptionAmmount = await activeRpcClient.GetMinimumBalanceForRentExemptionAsync(TokenProgram.TokenAccountDataSize);
-
-        var lortAccounts = await GetOwnedTokenAccounts(toWalletAccount, tokenMint, "", activeRpcClient);
-        byte[] transaction;
-        if (lortAccounts != null && lortAccounts.Count > 0)
-        {
-            transaction = new TransactionBuilder().SetRecentBlockHash(blockHash.Result.Value.Blockhash).
-                AddInstruction(TokenProgram.Transfer(new PublicKey(sourceTokenAccount),
-                new PublicKey(lortAccounts[0].ToString()),
-                ammount,
-                sourceAccountOwner.PublicKey))
-                .Build(sourceAccountOwner);
-        }
-        else
-        {
-            var newAccKeypair = new Account();
-            transaction = new TransactionBuilder().SetRecentBlockHash(blockHash.Result.Value.Blockhash).
-                SetFeePayer(sourceAccountOwner).
-                AddInstruction(
-                SystemProgram.CreateAccount(
-                    sourceAccountOwner.PublicKey,
-                    newAccKeypair.PublicKey,
-                    rentExemptionAmmount.Result,
-                    TokenProgram.TokenAccountDataSize,
-                    TokenProgram.ProgramIdKey)).
-                AddInstruction(
-                TokenProgram.InitializeAccount(
-                    newAccKeypair.PublicKey,
-                    new PublicKey(tokenMint),
-                    new PublicKey(toWalletAccount))).
-                AddInstruction(TokenProgram.Transfer(new PublicKey(sourceTokenAccount),
-                    newAccKeypair.PublicKey,
-                    ammount,
-                    sourceAccountOwner.PublicKey))
-                .Build(new List<Account>()
-                {
-                        sourceAccountOwner,
-                        newAccKeypair
-                });
-        }
-        var tx = await activeRpcClient.SendTransactionAsync(Convert.ToBase64String(transaction));
-        logger.LogInformation(tx.WasSuccessful.ToString());
-        return tx;
-    }
-
-    public static async Task<List<Solnet.Rpc.Models.TokenAccount>> GetOwnedTokenAccounts(string walletPubKey, string tokenMintPubKey, string tokenProgramPublicKey, IRpcClient activeRpcClient)
-    {
-        var result = await activeRpcClient.GetTokenAccountsByOwnerAsync(walletPubKey, tokenMintPubKey, tokenProgramPublicKey);
-        if (result.Result != null && result.Result.Value != null)
-        {
-            return result.Result.Value;
-        }
-        return null;
     }
 }
