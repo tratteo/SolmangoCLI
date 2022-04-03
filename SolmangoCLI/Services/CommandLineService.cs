@@ -41,10 +41,6 @@ public class CommandLineService : ICoreRunner
             .InhibitHelp()
             .Add((handler) => Console.WriteLine(Cli.Print())));
 
-        Cli.Register(Command.Factory("airdrop")
-            .Description("test")
-            .AddAsync(async (handler) => await CommandsHandler.AirdropToHolders(logger, "BSMhJs3m3BAS1A83oSheF32JAYnCo3tPeohZrRHcya5o", "4R9JiktMdTyxgX2ezd7iiscaRMHXsKeh3VM99e9eepoK", new Solnet.Wallet.Account("118NUZLXcRt8TyJo21TXA4C9BrTuXEBFfKgFtk7vSgHuuJ4iz2rKfmyeHGz45SoktgkTpdXss1KkNPqecx8NFNk", "EX2teQbpUAYjwcfmup9mJabqXgNLyVB1bhmFMyj7imXz"), "A48RTo99QPH9qGyqSWhPPykViPwF9msJtX77TnufgMcK")));
-
         Cli.Register(Command.Factory("get-holders")
             .Description("Retrive holders list using the mint list")
             .ArgumentsHandler(
@@ -58,7 +54,7 @@ public class CommandLineService : ICoreRunner
             .ArgumentsHandler(ArgumentsHandler.Factory()
             .Positional("The path to the source wallet keypair file")
             .Positional("The token mint to distribute")
-            .Positional("The address dictionary to distribute to"))
+            .Positional("The path to the address dictionary.json"))
             .AddAsync(async (handler) => await CommandsHandler.DistributeTokens(handler, services, logger)));
     }
 }

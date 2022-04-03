@@ -5,9 +5,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
+using OneOf;
 using SolmangoCLI.Objects;
 using SolmangoCLI.Settings;
 using SolmangoNET;
+using SolmangoNET.Exceptions;
 using SolmangoNET.Rpc;
 using Solnet.KeyStore;
 using Solnet.Programs;
@@ -105,24 +107,113 @@ public static class CommandsHandler
     public static async Task<bool> DistributeTokens(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
-        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
-        ConsoleProgressBar progressBar = new ConsoleProgressBar();
+        var rpcClient = ClientFactory.GetClient("https://api.devnet.solana.com/");
+        ConsoleProgressBar progressBar = new ConsoleProgressBar(50);
 
-        var hash = File.ReadAllText(handler.GetPositional(0));
+        var key = File.ReadAllText(handler.GetPositional(0));
         //gets keys
-        var keys = JsonConvert.DeserializeObject<KeyPair>(hash);
-        Account sender = new Account(keys!.PublicKey, keys.PrivateKey);
+        var keys = JsonConvert.DeserializeObject<KeyPair>(key);
+        logger.LogError(keys!.PublicKey + "\n" + keys.PrivateKey);
+        Account sender = new Account(keys.PrivateKey, keys!.PublicKey);
         //gets dictionary
         var str = File.ReadAllText(handler.GetPositional(2));
         var dic = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(str);
 
         //gets sender tokenaccount
-
+        int sum = 0;
+        int i = 0;
         foreach (var pair in dic)
         {
-            var res = await Solmango.SendSplToken(rpcClient,)
+            var res = await SendSplToken(rpcClient, sender, pair.Key, handler.GetPositional(1), (ulong)pair.Value.Count);
+            if (res.TryPickT1(out var ex, out var success))
+            {
+                logger.LogError(ex.ToString());
+                return false;
             }
-
+            else
+            {
+                if (success)
+                {
+                    sum += pair.Value.Count;
+                }
+                else
+                {
+                    logger.LogError("Couldnt send tokens to {address}", pair.Key);
+                }
+            }
+            progressBar.Report((float)i / dic.Count);
+            i++;
+        }
+        progressBar.Dispose();
+        logger.LogInformation("Sent {sum} Tokens ", sum);
         return true;
+    }
+
+    public static async Task<string?> TryGetAssociatedTokenAccount(IRpcClient rpcClient, string address, string tokenMint)
+    {
+        var res = await rpcClient.GetTokenAccountsByOwnerAsync(address, tokenMint);
+        return res.Result is null ? null : res.Result.Value is not null && res.Result.Value.Count > 0 ? res.Result.Value[0].PublicKey : null;
+    }
+
+    /// <summary>
+    ///   Sends a custom SPL token. Create the address on the receiver account if does not exists.
+    /// </summary>
+    /// <param name="rpcClient"> </param>
+    /// <param name="toPublicKey"> </param>
+    /// <param name="fromAccount"> </param>
+    /// <param name="tokenMint"> </param>
+    /// <param name="amount"> </param>
+    /// <returns> </returns>
+    public static async Task<OneOf<bool, SolmangoRpcException>> SendSplToken(IRpcClient rpcClient, Account fromAccount, string toPublicKey, string tokenMint, ulong amount)
+    {
+        var blockHash = await rpcClient.GetLatestBlockHashAsync();
+        var rentExemptionAmmount = await rpcClient.GetMinimumBalanceForRentExemptionAsync(TokenProgram.TokenAccountDataSize);
+        var first = TryGetAssociatedTokenAccount(rpcClient, toPublicKey, tokenMint);
+        var second = TryGetAssociatedTokenAccount(rpcClient, fromAccount.PublicKey, tokenMint);
+        await Task.WhenAll(first, second);
+
+        var associatedAccount = first.Result;
+        var sourceTokenAccount = second.Result;
+        if (sourceTokenAccount is null) return false;
+        byte[] transaction;
+        if (associatedAccount is not null)
+        {
+            transaction = new TransactionBuilder().SetRecentBlockHash(blockHash.Result.Value.Blockhash)
+                .SetFeePayer(fromAccount)
+                .AddInstruction(TokenProgram.Transfer(new PublicKey(sourceTokenAccount),
+                new PublicKey(associatedAccount),
+                amount.ToLamports(),
+                fromAccount.PublicKey))
+                .Build(fromAccount);
+        }
+        else
+        {
+            var newAccKeypair = new Account();
+            transaction = new TransactionBuilder().SetRecentBlockHash(blockHash.Result.Value.Blockhash).
+                SetFeePayer(fromAccount).
+                AddInstruction(
+                SystemProgram.CreateAccount(
+                    fromAccount.PublicKey,
+                    newAccKeypair.PublicKey,
+                    rentExemptionAmmount.Result,
+                    TokenProgram.TokenAccountDataSize,
+                    TokenProgram.ProgramIdKey)).
+                AddInstruction(
+                TokenProgram.InitializeAccount(
+                    newAccKeypair.PublicKey,
+                    new PublicKey(tokenMint),
+                    new PublicKey(toPublicKey))).
+                AddInstruction(TokenProgram.Transfer(new PublicKey(sourceTokenAccount),
+                    newAccKeypair.PublicKey,
+                    amount.ToLamports(),
+                    fromAccount.PublicKey))
+                .Build(new List<Account>()
+                {
+                        fromAccount,
+                        newAccKeypair
+                });
+        }
+        var res = await rpcClient.SendTransactionAsync(Convert.ToBase64String(transaction));
+        return !res.WasRequestSuccessfullyHandled ? new SolmangoRpcException(res.Reason, res.ServerErrorCode) : true;
     }
 }
