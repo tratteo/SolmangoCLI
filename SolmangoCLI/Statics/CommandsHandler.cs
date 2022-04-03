@@ -128,6 +128,7 @@ public static class CommandsHandler
             if (res.TryPickT1(out var ex, out var success))
             {
                 logger.LogError(ex.ToString());
+                progressBar.Dispose();
                 return false;
             }
             else
