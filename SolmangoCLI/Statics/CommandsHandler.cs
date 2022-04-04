@@ -122,7 +122,7 @@ public static class CommandsHandler
         var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
         var progressBar = new ConsoleProgressBar(50);
         var sum = 0;
-        var failedAddresses = new List<string>();
+        var failedAddresses = new Dictionary<string, List<string>>();
         try
         {
             var key = File.ReadAllText(handler.GetPositional(0));
@@ -140,6 +140,8 @@ public static class CommandsHandler
             }
 
             var str = File.ReadAllText(handler.GetPositional(2));
+            // Failed addresses have been changed to a dictionary so that when serializing it to json, it is possible to call this command
+            // directly with the file, retrying only on failed ones
             var dic = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(str);
             var i = 1;
             if (dic is null)
@@ -153,7 +155,7 @@ public static class CommandsHandler
                 if (res.TryPickT1(out var ex, out var success))
                 {
                     logger.LogError("Rpc exception {ex}", ex.ToString());
-                    failedAddresses.Add(pair.Key);
+                    failedAddresses.Add(pair.Key, pair.Value);
                     continue;
                 }
                 else
@@ -164,7 +166,7 @@ public static class CommandsHandler
                     }
                     else
                     {
-                        failedAddresses.Add(pair.Key);
+                        failedAddresses.Add(pair.Key, pair.Value);
                     }
                 }
                 i++;
@@ -180,9 +182,11 @@ public static class CommandsHandler
         finally
         {
             progressBar.Dispose();
+            // TODO save the failedAddresses to json so that it is possible to directly feed the json file to this command to retry only on
+            // the failed addresses
             if (failedAddresses.Count > 0)
             {
-                logger.LogError("Sent {sum} Tokens but Failed to send tokens to these addresses: \n {addresses}", sum, string.Join("\n", failedAddresses));
+                logger.LogError("Sent {sum} Tokens but Failed to send tokens to these addresses: \n {addresses}", sum, string.Join("\n", failedAddresses.Keys));
             }
             else
             {
