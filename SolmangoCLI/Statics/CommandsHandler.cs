@@ -116,32 +116,47 @@ public static class CommandsHandler
             var key = File.ReadAllText(handler.GetPositional(0));
             //gets keys
             var keys = JsonConvert.DeserializeObject<KeyPair>(key);
-            Account sender = new Account(keys!.PrivateKey, keys.PublicKey);
+            Account sender;
+            if (keys is not null)
+                sender = new Account(keys!.PrivateKey, keys.PublicKey);
+            else
+            {
+                logger.LogError("Couldn't Parse keypair.json");
+                return false;
+            }
             //gets dictionary
             var str = File.ReadAllText(handler.GetPositional(2));
             var dic = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(str);
             int i = 1;
-            foreach (var pair in dic!)
+            if (dic is not null)
             {
-                var res = await SendSplToken(rpcClient, sender, pair.Key, handler.GetPositional(1), (ulong)pair.Value.Count);
-                if (res.TryPickT1(out var ex, out var success))
+                foreach (var pair in dic)
                 {
-                    logger.LogError(ex.ToString());
-                    return false;
-                }
-                else
-                {
-                    if (success)
+                    var res = await SendSplToken(rpcClient, sender, pair.Key, handler.GetPositional(1), (ulong)pair.Value.Count);
+                    if (res.TryPickT1(out var ex, out var success))
                     {
-                        sum += pair.Value.Count;
+                        logger.LogError(ex.ToString());
+                        return false;
                     }
                     else
                     {
-                        failedAddresses.Add(pair.Key);
+                        if (success)
+                        {
+                            sum += pair.Value.Count;
+                        }
+                        else
+                        {
+                            failedAddresses.Add(pair.Key);
+                        }
                     }
+                    i++;
+                    progressBar.Report((float)i / dic.Count);
                 }
-                i++;
-                progressBar.Report((float)i / dic.Count);
+            }
+            else
+            {
+                logger.LogError("Couldn't parse the dictionary.json");
+                return false;
             }
             return true;
         }
@@ -159,7 +174,7 @@ public static class CommandsHandler
             }
             else
             {
-                logger.LogInformation("Succesfully sent {sum} Tokens ", sum);
+                logger.LogInformation(" sent {sum} Tokens ", sum);
             }
         }
     }
