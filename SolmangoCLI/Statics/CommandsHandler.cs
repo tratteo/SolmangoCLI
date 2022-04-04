@@ -107,47 +107,61 @@ public static class CommandsHandler
     public static async Task<bool> DistributeTokens(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
-        var rpcClient = ClientFactory.GetClient("https://api.devnet.solana.com/");
+        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
         ConsoleProgressBar progressBar = new ConsoleProgressBar(50);
-
-        var key = File.ReadAllText(handler.GetPositional(0));
-        //gets keys
-        var keys = JsonConvert.DeserializeObject<KeyPair>(key);
-        logger.LogError(keys!.PublicKey + "\n" + keys.PrivateKey);
-        Account sender = new Account(keys.PrivateKey, keys!.PublicKey);
-        //gets dictionary
-        var str = File.ReadAllText(handler.GetPositional(2));
-        var dic = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(str);
-
-        //gets sender tokenaccount
         int sum = 0;
-        int i = 0;
-        foreach (var pair in dic)
+        List<string> failedAddresses = new List<string>();
+        try
         {
-            var res = await SendSplToken(rpcClient, sender, pair.Key, handler.GetPositional(1), (ulong)pair.Value.Count);
-            if (res.TryPickT1(out var ex, out var success))
+            var key = File.ReadAllText(handler.GetPositional(0));
+            //gets keys
+            var keys = JsonConvert.DeserializeObject<KeyPair>(key);
+            Account sender = new Account(keys!.PrivateKey, keys.PublicKey);
+            //gets dictionary
+            var str = File.ReadAllText(handler.GetPositional(2));
+            var dic = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(str);
+            int i = 1;
+            foreach (var pair in dic!)
             {
-                logger.LogError(ex.ToString());
-                progressBar.Dispose();
-                return false;
-            }
-            else
-            {
-                if (success)
+                var res = await SendSplToken(rpcClient, sender, pair.Key, handler.GetPositional(1), (ulong)pair.Value.Count);
+                if (res.TryPickT1(out var ex, out var success))
                 {
-                    sum += pair.Value.Count;
+                    logger.LogError(ex.ToString());
+                    return false;
                 }
                 else
                 {
-                    logger.LogError("Couldnt send tokens to {address}", pair.Key);
+                    if (success)
+                    {
+                        sum += pair.Value.Count;
+                    }
+                    else
+                    {
+                        failedAddresses.Add(pair.Key);
+                    }
                 }
+                i++;
+                progressBar.Report((float)i / dic.Count);
             }
-            progressBar.Report((float)i / dic.Count);
-            i++;
+            return true;
         }
-        progressBar.Dispose();
-        logger.LogInformation("Sent {sum} Tokens ", sum);
-        return true;
+        catch (Exception ex)
+        {
+            logger.LogError(ex.ToString());
+            return false;
+        }
+        finally
+        {
+            progressBar.Dispose();
+            if (failedAddresses.Count > 0)
+            {
+                logger.LogError("Sent {sum} Tokens but Failed to send tokens to these addresses: \n {addresses}", sum, String.Join("\n", failedAddresses));
+            }
+            else
+            {
+                logger.LogInformation("Succesfully sent {sum} Tokens ", sum);
+            }
+        }
     }
 
     public static async Task<string?> TryGetAssociatedTokenAccount(IRpcClient rpcClient, string address, string tokenMint)
