@@ -63,6 +63,6 @@ public class CommandLineService : ICoreRunner
             .Positional("The private key in base 58")
             .Positional("The public key in base 58")
             .Positional("The path to save the keypair in byte[] format"))
-            .Add((handler) => CommandsHandler.ConvertToByteArray(handler, services, logger)));
+            .Add((handler) => CommandsHandler.GenerateKeyPairFromBase58Keys(handler, services, logger)));
     }
 }

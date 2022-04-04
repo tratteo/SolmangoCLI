@@ -69,7 +69,7 @@ public static class CommandsHandler
     /// <param name="services"> </param>
     /// <param name="logger"> </param>
     /// <returns> </returns>
-    public static bool ConvertToByteArray(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
+    public static bool GenerateKeyPairFromBase58Keys(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         try
         {
