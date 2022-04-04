@@ -121,7 +121,7 @@ public static class CommandsHandler
                 sender = new Account(keys!.PrivateKey, keys.PublicKey);
             else
             {
-                logger.LogError("Couldn't Parse keypair.json");
+                logger.LogError("Couldn't Parse {keypair}", Path.GetFileName(handler.GetPositional(0)));
                 return false;
             }
             //gets dictionary
@@ -132,7 +132,7 @@ public static class CommandsHandler
             {
                 foreach (var pair in dic)
                 {
-                    var res = await SendSplToken(rpcClient, sender, pair.Key, handler.GetPositional(1), (ulong)pair.Value.Count);
+                    var res = await Solmango.SendSplToken(rpcClient, sender, pair.Key, handler.GetPositional(1), (ulong)pair.Value.Count);
                     if (res.TryPickT1(out var ex, out var success))
                     {
                         logger.LogError(ex.ToString());
@@ -155,7 +155,7 @@ public static class CommandsHandler
             }
             else
             {
-                logger.LogError("Couldn't parse the dictionary.json");
+                logger.LogError("Couldn't parse {dictionary}", Path.GetFileName(handler.GetPositional(2)));
                 return false;
             }
             return true;
@@ -177,73 +177,5 @@ public static class CommandsHandler
                 logger.LogInformation(" sent {sum} Tokens ", sum);
             }
         }
-    }
-
-    public static async Task<string?> TryGetAssociatedTokenAccount(IRpcClient rpcClient, string address, string tokenMint)
-    {
-        var res = await rpcClient.GetTokenAccountsByOwnerAsync(address, tokenMint);
-        return res.Result is null ? null : res.Result.Value is not null && res.Result.Value.Count > 0 ? res.Result.Value[0].PublicKey : null;
-    }
-
-    /// <summary>
-    ///   Sends a custom SPL token. Create the address on the receiver account if does not exists.
-    /// </summary>
-    /// <param name="rpcClient"> </param>
-    /// <param name="toPublicKey"> </param>
-    /// <param name="fromAccount"> </param>
-    /// <param name="tokenMint"> </param>
-    /// <param name="amount"> </param>
-    /// <returns> </returns>
-    public static async Task<OneOf<bool, SolmangoRpcException>> SendSplToken(IRpcClient rpcClient, Account fromAccount, string toPublicKey, string tokenMint, ulong amount)
-    {
-        var blockHash = await rpcClient.GetLatestBlockHashAsync();
-        var rentExemptionAmmount = await rpcClient.GetMinimumBalanceForRentExemptionAsync(TokenProgram.TokenAccountDataSize);
-        var first = TryGetAssociatedTokenAccount(rpcClient, toPublicKey, tokenMint);
-        var second = TryGetAssociatedTokenAccount(rpcClient, fromAccount.PublicKey, tokenMint);
-        await Task.WhenAll(first, second);
-
-        var associatedAccount = first.Result;
-        var sourceTokenAccount = second.Result;
-        if (sourceTokenAccount is null) return false;
-        byte[] transaction;
-        if (associatedAccount is not null)
-        {
-            transaction = new TransactionBuilder().SetRecentBlockHash(blockHash.Result.Value.Blockhash)
-                .SetFeePayer(fromAccount)
-                .AddInstruction(TokenProgram.Transfer(new PublicKey(sourceTokenAccount),
-                new PublicKey(associatedAccount),
-                amount.ToLamports(),
-                fromAccount.PublicKey))
-                .Build(fromAccount);
-        }
-        else
-        {
-            var newAccKeypair = new Account();
-            transaction = new TransactionBuilder().SetRecentBlockHash(blockHash.Result.Value.Blockhash).
-                SetFeePayer(fromAccount).
-                AddInstruction(
-                SystemProgram.CreateAccount(
-                    fromAccount.PublicKey,
-                    newAccKeypair.PublicKey,
-                    rentExemptionAmmount.Result,
-                    TokenProgram.TokenAccountDataSize,
-                    TokenProgram.ProgramIdKey)).
-                AddInstruction(
-                TokenProgram.InitializeAccount(
-                    newAccKeypair.PublicKey,
-                    new PublicKey(tokenMint),
-                    new PublicKey(toPublicKey))).
-                AddInstruction(TokenProgram.Transfer(new PublicKey(sourceTokenAccount),
-                    newAccKeypair.PublicKey,
-                    amount.ToLamports(),
-                    fromAccount.PublicKey))
-                .Build(new List<Account>()
-                {
-                        fromAccount,
-                        newAccKeypair
-                });
-        }
-        var res = await rpcClient.SendTransactionAsync(Convert.ToBase64String(transaction));
-        return !res.WasRequestSuccessfullyHandled ? new SolmangoRpcException(res.Reason, res.ServerErrorCode) : true;
     }
 }
