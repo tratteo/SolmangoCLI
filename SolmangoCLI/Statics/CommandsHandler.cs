@@ -32,7 +32,7 @@ public static class CommandsHandler
         handler.GetKeyed("-u", out var updateAuthority);
 
         var rpcClient = ClientFactory.GetClient(connectionSettings.CurrentValue.ClusterEndpoint);
-        logger.LogInformation($"Scraping on {connectionSettings.CurrentValue.ClusterEndpoint} with parameters: name: {name} | symbol: {symbol} | updateAuthority: {updateAuthority}");
+        logger.LogInformation("Scraping on {endpoint} with parameters: name: {name} | symbol: {symbol} | updateAuthority: {updateAuthority}", connectionSettings.CurrentValue.ClusterEndpoint, name, symbol, updateAuthority);
         var oneOfMints = rpcScheduler.Schedule(() => Solmango.ScrapeCollectionMints(rpcClient, name, symbol, updateAuthority is not null ? new PublicKey(updateAuthority) : null));
         if (oneOfMints.TryPickT1(out var saturatedEx, out var token))
         {
@@ -46,13 +46,12 @@ public static class CommandsHandler
             .Await(Task.Run(async () => await token));
         if (oneOf.TryPickT1(out var solmangoEx, out var mints))
         {
-            logger.LogError($"Rpc error scraping collection: {solmangoEx.Reason}");
+            logger.LogError("Rpc error scraping collection: {reason}", solmangoEx.Reason);
             return;
         }
 
-        var (path, fileName) = PathExtensions.Split(handler.GetPositional(0));
-        logger.LogInformation($"Found {mints.Count} mints, result -> {path + fileName}");
-        Serializer.SerializeJson(path, fileName, ImmutableList.CreateRange(from e in mints select e.Item1));
+        logger.LogInformation("Found {count} mints, result -> {path}", mints.Count, handler.GetPositional(0));
+        Serializer.SerializeJson(handler.GetPositional(0), ImmutableList.CreateRange(from e in mints select e.Item1));
     }
 
     public static bool GenerateKeyPairFromBase58Keys(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
@@ -64,8 +63,7 @@ public static class CommandsHandler
             var privateK = keypair.PrivateKey.KeyBytes;
             var keys = privateK.Concat(pubK).ToArray();
             var intarray = keys.Select(k => (int)k).ToArray();
-            var res = JsonConvert.SerializeObject(intarray);
-            File.WriteAllText(handler.GetPositional(2), res);
+            Serializer.SerializeJson(handler.GetPositional(2), intarray);
             logger.LogInformation("File generated correctly");
             return true;
         }
@@ -98,8 +96,7 @@ public static class CommandsHandler
                 return false;
             }
             progressBar.Dispose();
-            var json = JsonConvert.SerializeObject(owners, Formatting.Indented);
-            File.WriteAllText(handler.GetPositional(1), json);
+            Serializer.SerializeJson(handler.GetPositional(1), owners, true, new JsonSerializerSettings() { Formatting = Formatting.Indented });
             var sum = 0;
             foreach (var pair in owners)
             {
@@ -125,30 +122,21 @@ public static class CommandsHandler
         var failedAddresses = new Dictionary<string, List<string>>();
         try
         {
-            var key = File.ReadAllText(handler.GetPositional(0));
-            //gets keys
-            var keys = JsonConvert.DeserializeObject<KeyPair>(key);
-            Account sender;
-            if (keys is not null)
-            {
-                sender = new Account(keys!.PrivateKey, keys.PublicKey);
-            }
-            else
+            if (!Serializer.DeserializeJson<KeyPair>(handler.GetPositional(0), out var keys) || keys is null)
             {
                 logger.LogError("Couldn't Parse {keypair}", Path.GetFileName(handler.GetPositional(0)));
                 return false;
             }
 
-            var str = File.ReadAllText(handler.GetPositional(2));
-            // Failed addresses have been changed to a dictionary so that when serializing it to json, it is possible to call this command
-            // directly with the file, retrying only on failed ones
-            var dic = JsonConvert.DeserializeObject<Dictionary<string, List<string>>>(str);
-            var i = 1;
-            if (dic is null)
+            var sender = new Account(keys.PrivateKey, keys.PublicKey);
+
+            if (!Serializer.DeserializeJson<Dictionary<string, List<string>>>(handler.GetPositional(2), out var dic) || dic is null)
             {
                 logger.LogError("Couldn't parse {dictionary}", Path.GetFileName(handler.GetPositional(2)));
                 return false;
             }
+
+            var progressCount = 1;
             foreach (var pair in dic)
             {
                 var res = await Solmango.SendSplToken(rpcClient, sender, pair.Key, handler.GetPositional(1), (ulong)pair.Value.Count);
@@ -169,8 +157,8 @@ public static class CommandsHandler
                         failedAddresses.Add(pair.Key, pair.Value);
                     }
                 }
-                i++;
-                progressBar.Report((float)i / dic.Count);
+                progressCount++;
+                progressBar.Report((float)progressCount / dic.Count);
             }
             return true;
         }
