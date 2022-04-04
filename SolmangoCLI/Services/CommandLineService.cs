@@ -56,5 +56,13 @@ public class CommandLineService : ICoreRunner
             .Positional("The token mint to distribute")
             .Positional("The path to the address dictionary.json"))
             .AddAsync(async (handler) => await CommandsHandler.DistributeTokens(handler, services, logger)));
+
+        Cli.Register(Command.Factory("generate-keypair")
+            .Description("generate a keypair.json to use on the solana CLI")
+            .ArgumentsHandler(ArgumentsHandler.Factory()
+            .Positional("The private key in base 58")
+            .Positional("The public key in base 58")
+            .Positional("The path to save the keypair in byte[] format"))
+            .Add((handler) => CommandsHandler.ConvertToByteArray(handler, services, logger)));
     }
 }

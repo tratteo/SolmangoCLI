@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace SolmangoCLI.Statics;
@@ -59,6 +60,34 @@ public static class CommandsHandler
         var (path, fileName) = PathExtensions.Split(handler.GetPositional(0));
         logger.LogInformation($"Found {mints.Count} mints, result -> {path + fileName}");
         Serializer.SerializeJson(path, fileName, ImmutableList.CreateRange(from e in mints select e.Item1));
+    }
+
+    /// <summary>
+    ///   generates keypair file to use with the solana CLI
+    /// </summary>
+    /// <param name="handler"> </param>
+    /// <param name="services"> </param>
+    /// <param name="logger"> </param>
+    /// <returns> </returns>
+    public static bool ConvertToByteArray(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
+    {
+        try
+        {
+            Account keypair = new Account(handler.GetPositional(0), handler.GetPositional(1));
+            var pubK = keypair.PublicKey.KeyBytes;
+            var privateK = keypair.PrivateKey.KeyBytes;
+            var keys = privateK.Concat(pubK).ToArray();
+            var intarray = keys.Select(k => (int)k).ToArray();
+            var res = JsonConvert.SerializeObject(intarray);
+            File.WriteAllText(handler.GetPositional(2), res);
+            logger.LogInformation("File generated correctly");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex.ToString());
+            return false;
+        }
     }
 
     public static async Task<bool> RetriveHolders(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
