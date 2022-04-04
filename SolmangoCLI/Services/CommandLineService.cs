@@ -46,7 +46,7 @@ public class CommandLineService : ICoreRunner
             .ArgumentsHandler(
             ArgumentsHandler.Factory()
             .Positional("The minting list path")
-            .Positional("the path where to save the result"))
+            .Positional("The path where to save the result"))
             .AddAsync(async (handler) => await CommandsHandler.RetriveHolders(handler, services, logger)));
 
         Cli.Register(Command.Factory("distribute-tokens")
