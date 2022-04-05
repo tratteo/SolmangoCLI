@@ -60,8 +60,7 @@ public class CommandLineService : ICoreRunner
         Cli.Register(Command.Factory("generate-keypair")
             .Description("Generate a keypair.json to use on the solana CLI")
             .ArgumentsHandler(ArgumentsHandler.Factory()
-            .Positional("The private key in base 58")
-            .Positional("The public key in base 58")
+            .Positional("The keypair in base 58")
             .Positional("The path to save the keypair in byte[] format"))
             .Add((handler) => CommandsHandler.GenerateKeyPairFromBase58Keys(handler, services, logger)));
     }

@@ -59,11 +59,9 @@ public static class CommandsHandler
         try
         {
             var keypair = new Account(handler.GetPositional(0), handler.GetPositional(1));
-            var pubK = keypair.PublicKey.KeyBytes;
-            var privateK = keypair.PrivateKey.KeyBytes;
-            var keys = privateK.Concat(pubK).ToArray();
-            var intarray = keys.Select(k => (int)k).ToArray();
-            Serializer.SerializeJson(handler.GetPositional(2), intarray);
+            PrivateKey privateKey = new PrivateKey(handler.GetPositional(0));
+            var intarray = privateKey.KeyBytes.Select(k => (int)k).ToArray();
+            Serializer.SerializeJson(handler.GetPositional(1), intarray, false, new JsonSerializerSettings() { Formatting = Formatting.None });
             logger.LogInformation("File generated correctly");
             return true;
         }
