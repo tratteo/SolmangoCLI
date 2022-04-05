@@ -80,8 +80,7 @@ public static class CommandsHandler
         var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
         try
         {
-            var hash = File.ReadAllText(handler.GetPositional(0));
-            var hashList = JsonConvert.DeserializeObject<ImmutableList<string>>(hash);
+            Serializer.DeserializeJson<ImmutableList<string>>(handler.GetPositional(0), out var hashList);
             if (hashList is null || hashList.Count <= 0)
             {
                 logger.LogError("Couldn't find the hash list path or the file is empty");
@@ -170,11 +169,13 @@ public static class CommandsHandler
         finally
         {
             progressBar.Dispose();
-            // TODO save the failedAddresses to json so that it is possible to directly feed the json file to this command to retry only on
             // the failed addresses
             if (failedAddresses.Count > 0)
             {
                 logger.LogError("Sent {sum} Tokens but Failed to send tokens to these addresses: \n {addresses}", sum, string.Join("\n", failedAddresses.Keys));
+                var path = Path.GetDirectoryName(handler.GetPositional(2)) + "\\failedAddressesLog.json";
+                Serializer.SerializeJson(path!, failedAddresses);
+                logger.LogInformation("Failed delivery addresses dictionary saved at : {path}", path);
             }
             else
             {

@@ -58,7 +58,7 @@ public class CommandLineService : ICoreRunner
             .AddAsync(async (handler) => await CommandsHandler.DistributeTokens(handler, services, logger)));
 
         Cli.Register(Command.Factory("generate-keypair")
-            .Description("generate a keypair.json to use on the solana CLI")
+            .Description("Generate a keypair.json to use on the solana CLI")
             .ArgumentsHandler(ArgumentsHandler.Factory()
             .Positional("The private key in base 58")
             .Positional("The public key in base 58")
