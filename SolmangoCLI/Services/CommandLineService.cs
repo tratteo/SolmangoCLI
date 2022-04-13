@@ -1,12 +1,14 @@
 ﻿using HandierCli;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SolmangoCLI.Statics;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SolmangoCLI.Services;
 
-public class CommandLineService : ICoreRunner
+public class CommandLineService : IHostedService
 {
     private readonly IServiceProvider services;
 
@@ -21,7 +23,13 @@ public class CommandLineService : ICoreRunner
         BuildCli();
     }
 
-    public Task Run() => Cli.Run();
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        Cli.Run();
+        return Task.CompletedTask;
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     private void BuildCli()
     {

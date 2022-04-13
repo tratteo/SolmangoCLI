@@ -12,8 +12,11 @@ Console.Title = "Solmango cli";
 Logger.ConsoleInstance.LogInfo("----- SOLMANGO CLI -----\n\n", ConsoleColor.DarkCyan);
 
 var builder = WebApplication.CreateBuilder(args);
+
 builder.Services.Configure<ConnectionSettings>(builder.Configuration.GetSection(ConnectionSettings.Position));
-builder.Services.AddSingleton<ICoreRunner, CommandLineService>();
+
+builder.Services.AddHostedService<CommandLineService>();
+
 builder.Services.AddSingleton<IRpcScheduler, BasicRpcScheduler>((services) =>
 {
     var scheduler = new BasicRpcScheduler(100);
@@ -21,5 +24,4 @@ builder.Services.AddSingleton<IRpcScheduler, BasicRpcScheduler>((services) =>
     return scheduler;
 });
 var app = builder.Build();
-var core = app.Services.GetRequiredService<ICoreRunner>();
-await core.Run();
+await app.RunAsync();
