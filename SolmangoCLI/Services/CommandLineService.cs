@@ -71,5 +71,11 @@ public class CommandLineService : IHostedService
             .Positional("The keypair in base 58")
             .Positional("The path to save the keypair in byte[] format"))
             .Add((handler) => CommandsHandler.GenerateKeyPairFromBase58Keys(handler, services, logger)));
+
+        Cli.Register(Command.Factory("token-supply")
+            .Description("get token supply")
+            .ArgumentsHandler(ArgumentsHandler.Factory()
+            .Positional("the token mint"))
+            .Add(async (handler) => await CommandsHandler.GetTokenSupply(handler, services, logger)));
     }
 }

@@ -72,6 +72,24 @@ public static class CommandsHandler
         }
     }
 
+    public static async Task<bool> GetTokenSupply(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
+    {
+        var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
+        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
+        try
+        {
+            var res = await rpcClient.GetTokenSupplyAsync(handler.GetPositional(0));
+            var supply = res.Result.Value;
+            logger.LogInformation("Supply: {supply} Decimals: {decimal}", supply.AmountDouble, supply.Decimals);
+            return true;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e.Message);
+            return false;
+        }
+    }
+
     public static async Task<bool> RetriveHolders(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
@@ -109,7 +127,7 @@ public static class CommandsHandler
             return false;
         }
     }
-
+    //TODO add send spl token 
     public static async Task<bool> DistributeTokens(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
