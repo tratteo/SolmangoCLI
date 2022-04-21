@@ -24,7 +24,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="6.0.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="6.0.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-    <PackageReference Include="SolmangoNET" Version="2.0.5" />
+    <PackageReference Include="Siamango.SolmangoNET" Version="2.1.1" />
     <PackageReference Include="Solnet.Extensions" Version="6.0.7" />
     <PackageReference Include="Solnet.KeyStore" Version="6.0.7" />
     <PackageReference Include="Solnet.Programs" Version="6.0.7" />

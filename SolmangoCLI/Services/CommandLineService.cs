@@ -73,9 +73,18 @@ public class CommandLineService : IHostedService
             .Add((handler) => CommandsHandler.GenerateKeyPairFromBase58Keys(handler, services, logger)));
 
         Cli.Register(Command.Factory("token-supply")
-            .Description("get token supply")
+            .Description("Get the supply and decimals of a given token")
             .ArgumentsHandler(ArgumentsHandler.Factory()
             .Positional("the token mint"))
-            .Add(async (handler) => await CommandsHandler.GetTokenSupply(handler, services, logger)));
+            .AddAsync(async (handler) => await CommandsHandler.GetTokenSupply(handler, services, logger)));
+
+        Cli.Register(Command.Factory("send-spl-token")
+            .Description("Send an spl-token to an address")
+            .ArgumentsHandler(ArgumentsHandler.Factory()
+            .Positional("The path to the source wallet keypair file")
+            .Positional("The receiver address")
+            .Positional("The token mint address")
+            .Positional("The amount to send in <double> format"))
+            .AddAsync(async (handler) => await CommandsHandler.SendSplToken(handler, services, logger)));
     }
 }

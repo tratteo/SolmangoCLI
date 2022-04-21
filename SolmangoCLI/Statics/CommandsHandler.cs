@@ -127,7 +127,40 @@ public static class CommandsHandler
             return false;
         }
     }
-    //TODO add send spl token 
+
+    //TODO add send spl token
+    public static async Task<bool> SendSplToken(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
+    {
+        var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
+        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
+
+        if (!Serializer.DeserializeJson<KeyPair>(handler.GetPositional(0), out var keys) || keys is null)
+        {
+            logger.LogError("Couldn't Parse {keypair}", Path.GetFileName(handler.GetPositional(0)));
+            return false;
+        }
+        var sender = new Account(keys.PrivateKey, keys.PublicKey);
+        if (!double.TryParse(handler.GetPositional(3), out double amount))
+        {
+            logger.LogError("Couldn't parse this amount: {amount}", handler.GetPositional(3));
+        }
+        var res = await Solmango.SendSplToken(rpcClient, sender, handler.GetPositional(1), handler.GetPositional(2), amount);
+        if (res.TryPickT1(out var ex, out var success))
+        {
+            logger.LogError("Rpc exception {ex}", ex.ToString());
+        }
+        else
+        {
+            if (!success)
+            {
+                logger.LogError("Failed to send {mint} to {receiver}", handler.GetPositional(2), handler.GetPositional(1));
+                return success;
+            }
+            logger.LogInformation("Successfully sent {mint} to {receiver}", handler.GetPositional(2), handler.GetPositional(1));
+        }
+        return success;
+    }
+
     public static async Task<bool> DistributeTokens(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
