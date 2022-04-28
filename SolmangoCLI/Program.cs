@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using SolmangoCLI.Services;
 using SolmangoCLI.Settings;
+using SolmangoCLI.Statics;
 using SolmangoNET.Rpc;
 using System;
 
@@ -14,14 +15,14 @@ Logger.ConsoleInstance.LogInfo("----- SOLMANGO CLI -----\n\n", ConsoleColor.Dark
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<ConnectionSettings>(builder.Configuration.GetSection(ConnectionSettings.Position));
-
-builder.Services.AddHostedService<CommandLineService>();
+builder.Services.Configure<PathSettings>(builder.Configuration.GetSection(PathSettings.Position));
+builder.Services.AddOfflineRunner<CommandLineService>();
 
 builder.Services.AddSingleton<IRpcScheduler, BasicRpcScheduler>((services) =>
 {
-    var scheduler = new BasicRpcScheduler(100);
+    var scheduler = new BasicRpcScheduler(1250);
     scheduler.Start();
     return scheduler;
 });
 var app = builder.Build();
-await app.RunAsync();
+await app.RunOfflineAsync(System.Threading.CancellationToken.None);

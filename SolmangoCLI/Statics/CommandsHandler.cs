@@ -9,7 +9,10 @@ using SolmangoCLI.Objects;
 using SolmangoCLI.Settings;
 using SolmangoNET;
 using SolmangoNET.Rpc;
+using Solnet.Extensions;
+using Solnet.Extensions.TokenMint;
 using Solnet.Rpc;
+using Solnet.Rpc.Models;
 using Solnet.Wallet;
 using System;
 using System.Collections.Generic;
@@ -132,19 +135,20 @@ public static class CommandsHandler
     public static async Task<bool> SendSplToken(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
+        var walletPath = services.GetRequiredService<IOptionsMonitor<PathSettings>>();
         var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
 
-        if (!Serializer.DeserializeJson<KeyPair>(handler.GetPositional(0), out var keys) || keys is null)
+        if (!Serializer.DeserializeJson<KeyPair>(walletPath.CurrentValue.Wallet, out var keys) || keys is null)
         {
-            logger.LogError("Couldn't Parse {keypair}", Path.GetFileName(handler.GetPositional(0)));
+            logger.LogError("Couldn't Parse {keypair}", Path.GetFileName(walletPath.CurrentValue.Wallet));
             return false;
         }
         var sender = new Account(keys.PrivateKey, keys.PublicKey);
-        if (!double.TryParse(handler.GetPositional(3), out double amount))
+        if (!double.TryParse(handler.GetPositional(2), out double amount))
         {
-            logger.LogError("Couldn't parse this amount: {amount}", handler.GetPositional(3));
+            logger.LogError("Couldn't parse this amount: {amount}", handler.GetPositional(2));
         }
-        var res = await Solmango.SendSplToken(rpcClient, sender, handler.GetPositional(1), handler.GetPositional(2), amount);
+        var res = await Solmango.SendSplToken(rpcClient, sender, handler.GetPositional(0), handler.GetPositional(1), amount);
         if (res.TryPickT1(out var ex, out var success))
         {
             logger.LogError("Rpc exception {ex}", ex.ToString());
@@ -153,10 +157,10 @@ public static class CommandsHandler
         {
             if (!success)
             {
-                logger.LogError("Failed to send {mint} to {receiver}", handler.GetPositional(2), handler.GetPositional(1));
+                logger.LogError("Failed to send {mint} to {receiver}", handler.GetPositional(1), handler.GetPositional(0));
                 return success;
             }
-            logger.LogInformation("Successfully sent {mint} to {receiver}", handler.GetPositional(2), handler.GetPositional(1));
+            logger.LogInformation("Successfully sent {mint} to {receiver}", handler.GetPositional(1), handler.GetPositional(0));
         }
         return success;
     }
@@ -164,30 +168,54 @@ public static class CommandsHandler
     public static async Task<bool> DistributeTokens(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
+        var walletPath = services.GetRequiredService<IOptionsMonitor<PathSettings>>();
         var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
+        var rpcScheduler = services.GetRequiredService<IRpcScheduler>();
         var progressBar = new ConsoleProgressBar(50);
         var sum = 0;
         var failedAddresses = new Dictionary<string, List<string>>();
+        var resolver = await TokenMintResolver.LoadAsync();
+        var skip = handler.HasFlag("/s");
+        var skipCount = 0; //testttt
         try
         {
-            if (!Serializer.DeserializeJson<KeyPair>(handler.GetPositional(0), out var keys) || keys is null)
+            if (!Serializer.DeserializeJson<KeyPair>(walletPath.CurrentValue.Wallet, out var keys) || keys is null)
             {
-                logger.LogError("Couldn't Parse {keypair}", Path.GetFileName(handler.GetPositional(0)));
+                logger.LogError("Couldn't Parse {keypair}", Path.GetFileName(walletPath.CurrentValue.Wallet));
                 return false;
             }
 
             var sender = new Account(keys.PrivateKey, keys.PublicKey);
 
-            if (!Serializer.DeserializeJson<Dictionary<string, List<string>>>(handler.GetPositional(2), out var dic) || dic is null)
+            if (!Serializer.DeserializeJson<Dictionary<string, List<string>>>(handler.GetPositional(1), out var dic) || dic is null)
             {
-                logger.LogError("Couldn't parse {dictionary}", Path.GetFileName(handler.GetPositional(2)));
+                logger.LogError("Couldn't parse {dictionary}", Path.GetFileName(handler.GetPositional(1)));
                 return false;
             }
 
-            var progressCount = 1;
+            var progressCount = 0;
             foreach (var pair in dic)
             {
-                var res = await Solmango.SendSplToken(rpcClient, sender, pair.Key, handler.GetPositional(1), (ulong)pair.Value.Count);
+                progressCount++;
+                progressBar.Report((float)progressCount / dic.Count);
+                logger.LogInformation(progressCount.ToString());
+                if (skip)
+                {
+                    var x = await TryGetAssociatedTokenAccount(rpcClient, pair.Key, handler.GetPositional(0));
+                    if (x is not null && x.Account.Data.Parsed.Info.TokenAmount.AmountDecimal > 0)
+                    {
+                        skipCount++;
+                        continue;
+                    }
+                }
+                var result = rpcScheduler.Schedule(() => Solmango.SendSplToken(rpcClient, sender, pair.Key, handler.GetPositional(0), (ulong)pair.Value.Count));
+                if (result.TryPickT1(out var satEx, out var job))
+                {
+                    logger.LogError("Saturation exception {ex}", satEx.ToString());
+                    failedAddresses.Add(pair.Key, pair.Value);
+                    continue;
+                }
+                var res = await job;
                 if (res.TryPickT1(out var ex, out var success))
                 {
                     logger.LogError("Rpc exception {ex}", ex.ToString());
@@ -205,8 +233,6 @@ public static class CommandsHandler
                         failedAddresses.Add(pair.Key, pair.Value);
                     }
                 }
-                progressCount++;
-                progressBar.Report((float)progressCount / dic.Count);
             }
             return true;
         }
@@ -219,10 +245,14 @@ public static class CommandsHandler
         {
             progressBar.Dispose();
             // the failed addresses
+            if (skip)
+            {
+                logger.LogInformation("Skipped {skipCount} addresses", skipCount);
+            }
             if (failedAddresses.Count > 0)
             {
                 logger.LogError("Sent {sum} Tokens but Failed to send tokens to these addresses: \n {addresses}", sum, string.Join("\n", failedAddresses.Keys));
-                var path = Path.GetDirectoryName(handler.GetPositional(2)) + "\\failedAddressesLog.json";
+                var path = Path.GetDirectoryName(handler.GetPositional(1)) + "\\failedAddressesLog.json";
                 Serializer.SerializeJson(path!, failedAddresses);
                 logger.LogInformation("Failed delivery addresses dictionary saved at : {path}", path);
             }
@@ -231,5 +261,11 @@ public static class CommandsHandler
                 logger.LogInformation("Sent {sum} Tokens ", sum);
             }
         }
+    }
+
+    public static async Task<TokenAccount?> TryGetAssociatedTokenAccount(IRpcClient rpcClient, string address, string tokenMint)
+    {
+        var res = await rpcClient.GetTokenAccountsByOwnerAsync(address, tokenMint);
+        return res.Result is null ? null : res.Result.Value is not null && res.Result.Value.Count > 0 ? res.Result.Value[0] : null;
     }
 }

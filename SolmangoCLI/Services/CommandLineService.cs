@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace SolmangoCLI.Services;
 
-public class CommandLineService : IHostedService
+public class CommandLineService : IRunner
 {
     private readonly IServiceProvider services;
 
@@ -23,13 +23,10 @@ public class CommandLineService : IHostedService
         BuildCli();
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public Task RunAsync(CancellationToken cancellationToken)
     {
-        Cli.Run();
-        return Task.CompletedTask;
+        return Cli.Run();
     }
-
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     private void BuildCli()
     {
@@ -60,9 +57,9 @@ public class CommandLineService : IHostedService
         Cli.Register(Command.Factory("distribute-tokens")
             .Description("Distribute the given mint to a list of addresses stored in a dictionary")
             .ArgumentsHandler(ArgumentsHandler.Factory()
-            .Positional("The path to the source wallet keypair file")
             .Positional("The token mint to distribute")
-            .Positional("The path to the address dictionary.json"))
+            .Positional("The path to the address dictionary.json")
+            .Flag("/s", " Skip sending to addresses who already hold the token"))
             .AddAsync(async (handler) => await CommandsHandler.DistributeTokens(handler, services, logger)));
 
         Cli.Register(Command.Factory("generate-keypair")
@@ -81,7 +78,6 @@ public class CommandLineService : IHostedService
         Cli.Register(Command.Factory("send-spl-token")
             .Description("Send an spl-token to an address")
             .ArgumentsHandler(ArgumentsHandler.Factory()
-            .Positional("The path to the source wallet keypair file")
             .Positional("The receiver address")
             .Positional("The token mint address")
             .Positional("The amount to send in <double> format"))
