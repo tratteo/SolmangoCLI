@@ -5,13 +5,18 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
+using OneOf;
 using SolmangoCLI.Objects;
 using SolmangoCLI.Settings;
 using SolmangoNET;
+using SolmangoNET.Exceptions;
 using SolmangoNET.Rpc;
 using Solnet.Extensions;
 using Solnet.Extensions.TokenMint;
+using Solnet.Programs;
+using Solnet.Programs.Utilities;
 using Solnet.Rpc;
+using Solnet.Rpc.Builders;
 using Solnet.Rpc.Models;
 using Solnet.Wallet;
 using System;
@@ -131,7 +136,6 @@ public static class CommandsHandler
         }
     }
 
-    //TODO add send spl token
     public static async Task<bool> SendSplToken(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
@@ -163,6 +167,62 @@ public static class CommandsHandler
             logger.LogInformation("Successfully sent {mint} to {receiver}", handler.GetPositional(1), handler.GetPositional(0));
         }
         return success;
+    }
+
+    public static async Task<bool> GetHoldersTokenBalance(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
+    {
+        var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
+        var walletPath = services.GetRequiredService<IOptionsMonitor<PathSettings>>();
+        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
+        var rpcScheduler = services.GetRequiredService<IRpcScheduler>();
+        var progressBar = new ConsoleProgressBar(50);
+        int progressCount = 0;
+
+        ulong tokenScraped = 0;
+        Dictionary<string, ulong> holders = new Dictionary<string, ulong>();
+
+        //if (!Serializer.DeserializeJson<Dictionary<string, List<string>>>(handler.GetPositional(0), out var dic) || dic is null)
+        //{
+        //    logger.LogError("Couldn't parse {dictionary}", Path.GetFileName(handler.GetPositional(0)));
+        //    return false;
+        //}
+
+        var holder = await Solmango.GetSplTokenHolders(rpcClient, handler.GetPositional(1));
+        if (holder.TryPickT1(out var ex, out var res))
+        {
+            logger.LogError(ex.ToString());
+            return false;
+        }
+
+        foreach (var pair in res)
+        {
+            progressCount++;
+            progressBar.Report((float)progressCount / res.Count);
+
+            var dataBytes = Convert.FromBase64String(pair.Account.Data[0]);
+            var owner = ((ReadOnlySpan<byte>)dataBytes).GetPubKey(32);
+            var amount = ((ReadOnlySpan<byte>)dataBytes).GetU64(64);
+
+            //var ata = await rpcClient.GetTokenAccountsByOwnerAsync(pair.PublicKey, handler.GetPositional(1));
+            //if (!ata.WasRequestSuccessfullyHandled || ata.Result.Value is null) continue;
+            //var sum = (ulong)ata.Result.Value.Sum<TokenAccount>(x => (float)x.Account.Data.Parsed.Info.TokenAmount.AmountUlong);
+            if (amount <= 0) continue;
+            if (holders.TryGetValue(owner, out var _))
+            {
+                holders[owner] += amount;
+            }
+            else
+            {
+                holders.Add(owner, amount);
+            }
+
+            tokenScraped += amount;
+        }
+        Serializer.SerializeJson(handler.GetPositional(2), holders, true, new JsonSerializerSettings() { Formatting = Formatting.Indented });
+        progressBar.Dispose();
+        logger.LogInformation("Scraped {amount} holders and found {amount} token", res.Count, tokenScraped);
+
+        return true;
     }
 
     public static async Task<bool> DistributeTokens(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
@@ -201,11 +261,16 @@ public static class CommandsHandler
                 logger.LogInformation(progressCount.ToString());
                 if (skip)
                 {
-                    var x = await TryGetAssociatedTokenAccount(rpcClient, pair.Key, handler.GetPositional(0));
-                    if (x is not null && x.Account.Data.Parsed.Info.TokenAmount.AmountDecimal > 0)
+                    var ata = await Solmango.GetAssociatedTokenAccount(rpcClient, pair.Key, handler.GetPositional(0));
+                    if (ata is not null)
                     {
-                        skipCount++;
-                        continue;
+                        var x = rpcClient.GetTokenAccountBalance(ata);
+
+                        if (x is not null && int.Parse(x.Result.Value.UiAmountString) > 0)
+                        {
+                            skipCount++;
+                            continue;
+                        }
                     }
                 }
                 var result = rpcScheduler.Schedule(() => Solmango.SendSplToken(rpcClient, sender, pair.Key, handler.GetPositional(0), (ulong)pair.Value.Count));
@@ -261,11 +326,5 @@ public static class CommandsHandler
                 logger.LogInformation("Sent {sum} Tokens ", sum);
             }
         }
-    }
-
-    public static async Task<TokenAccount?> TryGetAssociatedTokenAccount(IRpcClient rpcClient, string address, string tokenMint)
-    {
-        var res = await rpcClient.GetTokenAccountsByOwnerAsync(address, tokenMint);
-        return res.Result is null ? null : res.Result.Value is not null && res.Result.Value.Count > 0 ? res.Result.Value[0] : null;
     }
 }

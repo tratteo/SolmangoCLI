@@ -82,5 +82,13 @@ public class CommandLineService : IRunner
             .Positional("The token mint address")
             .Positional("The amount to send in <double> format"))
             .AddAsync(async (handler) => await CommandsHandler.SendSplToken(handler, services, logger)));
+
+        Cli.Register(Command.Factory("holders-token-balance")
+            .Description("Generate a dictionary with the balance of the given token owned by every passed address")
+            .ArgumentsHandler(ArgumentsHandler.Factory()
+            .Positional("The path to the Dictionary of addresses")
+            .Positional("The token mint")
+            .Positional("The path to the address dictionary.json"))
+            .AddAsync(async (handler) => await CommandsHandler.GetHoldersTokenBalance(handler, services, logger)));
     }
 }
