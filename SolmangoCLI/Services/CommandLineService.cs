@@ -67,6 +67,12 @@ public class CommandLineService : IRunner
             .AddAsync(async (handler) => await CommandsHandler.DistributeTokensToHoldersDictionary(handler, services, logger)));
 
         // Clean
+        Cli.Register(Command.Factory("verify-keypair")
+            .Description("Verify the keypair loaded in the CLI")
+            .ArgumentsHandler(ArgumentsHandler.Factory())
+            .Add((handler) => CommandsHandler.VerifyCliAccount(handler, services, logger)));
+
+        // Clean
         Cli.Register(Command.Factory("generate-keypair")
             .Description("Generate a keypair.json to use on the solana CLI")
             .ArgumentsHandler(ArgumentsHandler.Factory()

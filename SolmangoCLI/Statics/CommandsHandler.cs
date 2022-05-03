@@ -5,7 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
-using SolmangoCLI.Objects;
 using SolmangoCLI.Settings;
 using SolmangoNET;
 using SolmangoNET.Rpc;
@@ -72,7 +71,7 @@ public static class CommandsHandler
             {
                 var account = new Account(pKey.KeyBytes, pKey.KeyBytes[32..]);
                 Serializer.SerializeJson(path,
-                    new KeyPair() { PrivateKey = account.PrivateKey, PublicKey = account.PublicKey },
+                    account.PrivateKey.Key,
                     false,
                     new JsonSerializerSettings() { Formatting = Formatting.Indented });
             }
@@ -83,6 +82,28 @@ public static class CommandsHandler
         {
             logger.LogError("Fatal exception: {ex}", ex.ToString());
             return false;
+        }
+    }
+
+    public static async void VerifyCliAccount(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
+    {
+        if (!services.TryGetCliAccount(out var account))
+        {
+            logger.LogError("Unable to find/deserialize CLI account");
+            return;
+        }
+        var rpcClient = services.GetRpcClient();
+        if (account is not null)
+        {
+            var res = await rpcClient.GetBalanceAsync(account.PublicKey);
+            if (!res.WasRequestSuccessfullyHandled)
+            {
+                logger.LogError("Account not valid, check that it represents an existing account");
+            }
+            else
+            {
+                logger.LogInformation("CLI account valid\nPublicKey: {p}\nBalance: {b}", account.PublicKey, res.Result.Value.ToSOL());
+            }
         }
     }
 
@@ -149,6 +170,7 @@ public static class CommandsHandler
 
     public static async Task<bool> SendSplToken(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
+        if (!services.TryGetCliAccount(out var sender)) return false;
         var receiver = handler.GetPositional(0);
         var mint = handler.GetPositional(1);
         if (!double.TryParse(handler.GetPositional(2), out var amount))
@@ -156,16 +178,7 @@ public static class CommandsHandler
             logger.LogError("Couldn't parse this amount: {amount}", handler.GetPositional(2));
             return false;
         }
-        var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
-        var walletPath = services.GetRequiredService<IOptionsMonitor<PathSettings>>();
-        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
-
-        if (!Serializer.DeserializeJson<KeyPair>(walletPath.CurrentValue.Wallet, out var keys) || keys is null)
-        {
-            logger.LogError("Couldn't Parse {keypair}", Path.GetFileName(walletPath.CurrentValue.Wallet));
-            return false;
-        }
-        var sender = new Account(keys.PrivateKey, keys.PublicKey);
+        var rpcClient = services.GetRpcClient();
 
         var res = await Solmango.SendSplToken(rpcClient, sender, receiver, mint, amount);
         if (res.TryPickT1(out var ex, out var success))
@@ -246,16 +259,9 @@ public static class CommandsHandler
         var sum = 0UL;
         var failedAddresses = new Dictionary<string, ulong>();
         var skipCount = 0;
+        if (!services.TryGetCliAccount(out var sender)) return false;
         try
         {
-            if (!Serializer.DeserializeJson<KeyPair>(walletPath.CurrentValue.Wallet, out var keys) || keys is null)
-            {
-                logger.LogError("Couldn't Parse {keypair}", Path.GetFileName(walletPath.CurrentValue.Wallet));
-                return false;
-            }
-
-            var sender = new Account(keys.PrivateKey, keys.PublicKey);
-
             if (!Serializer.DeserializeJson<Dictionary<string, ulong>>(path, out var dic) || dic is null)
             {
                 logger.LogError("Couldn't parse {dictionary}", Path.GetFileName(handler.GetPositional(1)));
