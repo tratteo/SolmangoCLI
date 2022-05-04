@@ -3,6 +3,7 @@
 using HandierCli;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using SolmangoCLI.Services;
 using SolmangoCLI.Settings;
 using SolmangoCLI.Statics;
@@ -14,11 +15,10 @@ Logger.ConsoleInstance.LogInfo("----- SOLMANGO CLI -----\n\n", ConsoleColor.Dark
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.Configure<ConnectionSettings>(builder.Configuration.GetSection(ConnectionSettings.Position));
-builder.Services.Configure<PathSettings>(builder.Configuration.GetSection(PathSettings.Position));
-builder.Services.AddOfflineRunner<CommandLineService>();
-
-builder.Services.AddSingleton<IRpcScheduler, BasicRpcScheduler>((services) =>
+builder.Services.Configure<ConnectionSettings>(builder.Configuration.GetSection(ConnectionSettings.Position))
+    .Configure<PathSettings>(builder.Configuration.GetSection(PathSettings.Position))
+    .AddOfflineRunner<CommandLineService>()
+    .AddSingleton<IRpcScheduler, BasicRpcScheduler>((services) =>
 {
     var scheduler = new BasicRpcScheduler(1250);
     scheduler.Start();

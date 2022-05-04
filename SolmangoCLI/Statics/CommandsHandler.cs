@@ -107,6 +107,29 @@ public static class CommandsHandler
         }
     }
 
+    public static async void VerifyCliAccount(IServiceProvider services, ILogger logger)
+    {
+        if (!services.TryGetCliAccount(out var account))
+        {
+            logger.LogInformation("Unable to find/deserialize CLI account");
+            return;
+        }
+        var rpcClient = services.GetRpcClient();
+        if (account is not null)
+        {
+            var res = await rpcClient.GetBalanceAsync(account.PublicKey);
+            if (!res.WasRequestSuccessfullyHandled)
+            {
+                logger.LogError("Account not valid, check that it represents an existing account");
+            }
+            else
+            {
+                logger.LogInformation("CLI account valid\nPublicKey: {p}\nBalance: {b}", account.PublicKey, res.Result.Value.ToSOL());
+            }
+        }
+        return;
+    }
+
     public static async Task<bool> GetTokenSupply(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var mint = handler.GetPositional(0);

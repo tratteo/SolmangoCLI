@@ -19,7 +19,7 @@ public static class Extensions
 
     public static ulong ToLamports(this ulong sol) => sol * 1_000_000_000;
 
-    public static void AddOfflineRunner<T>(this IServiceCollection services) where T : class, IRunner => _ = services.AddSingleton<IRunner, T>();
+    public static IServiceCollection AddOfflineRunner<T>(this IServiceCollection services) where T : class, IRunner => _ = services.AddSingleton<IRunner, T>();
 
     public static IRpcClient GetRpcClient(this IServiceProvider services)
     {

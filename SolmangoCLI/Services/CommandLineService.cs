@@ -24,6 +24,7 @@ public class CommandLineService : IRunner
 
     public Task RunAsync(CancellationToken cancellationToken)
     {
+        CommandsHandler.VerifyCliAccount(services, logger);
         return Cli.Run();
     }
 
