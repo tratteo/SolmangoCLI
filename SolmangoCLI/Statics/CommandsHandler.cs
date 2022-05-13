@@ -142,13 +142,13 @@ public static class CommandsHandler
         return true;
     }
 
-    public static async Task<bool> RetriveHolders(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
+    public static bool RetriveHolders(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var hashListPath = handler.GetPositional(0);
         var path = handler.GetPositional(1);
         var amountOnly = handler.HasFlag("/amount-only");
         var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
-        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
+        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.UnboundedEndpoint);
         try
         {
             Serializer.DeserializeJson<ImmutableList<string>>(hashListPath, out var hashList);
@@ -158,7 +158,7 @@ public static class CommandsHandler
                 return false;
             }
             var progressBar = new ConsoleProgressBar(50);
-            var res = await Solmango.GetOwnersByCollection(rpcClient, hashList, progressBar);
+            var res = Solmango.GetOwnersByCollectionBatched(rpcClient, hashList, progressBar);
             if (res.TryPickT1(out var ex, out var owners))
             {
                 logger.LogError("Rpc exception: {ex}", ex.Reason);
@@ -268,6 +268,7 @@ public static class CommandsHandler
         return true;
     }
 
+    //since the solanaendpointbatcher does not show
     public static async Task<bool> DistributeTokensToHoldersDictionary(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var mint = handler.GetPositional(0);
@@ -301,8 +302,8 @@ public static class CommandsHandler
                     var ata = await Solmango.GetAssociatedTokenAccount(rpcClient, pair.Key, mint);
                     if (ata is not null)
                     {
-                        var x = rpcClient.GetTokenAccountBalance(ata);
-                        if (x is not null && x.Result.Value.AmountUlong > 0)
+                        var balance = rpcClient.GetTokenAccountBalance(ata);
+                        if (balance is not null && balance.Result.Value.AmountUlong > 0)
                         {
                             skipCount++;
                             continue;
