@@ -142,7 +142,7 @@ public static class CommandsHandler
         return true;
     }
 
-    public static bool RetriveHolders(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
+    public static async Task<bool> RetriveHolders(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var hashListPath = handler.GetPositional(0);
         var path = handler.GetPositional(1);
@@ -158,7 +158,7 @@ public static class CommandsHandler
                 return false;
             }
             var progressBar = new ConsoleProgressBar(50);
-            var res = Solmango.GetOwnersByCollectionBatched(rpcClient, hashList, progressBar);
+            var res = Solmango.GetOwnersByCollectionBatch(rpcClient, hashList, progressBar);
             if (res.TryPickT1(out var ex, out var owners))
             {
                 logger.LogError("Rpc exception: {ex}", ex.Reason);
@@ -182,6 +182,8 @@ public static class CommandsHandler
             }
 
             logger.LogInformation("Holders count: {holders}\nMints count: {mints}", owners.Keys.Count, sum);
+
+            await Task.CompletedTask;
             return true;
         }
         catch (Exception ex)
@@ -210,14 +212,10 @@ public static class CommandsHandler
         }
         else
         {
-            if (!success)
-            {
-                logger.LogError("Failed to send {amount} to {receiver}", amount, receiver);
-                return success;
-            }
+            //TODO check if the transaction is confirmed by getting the latest blockhash and see
             logger.LogInformation("Successfully sent {amount} to {receiver}", amount, receiver);
         }
-        return success;
+        return true;
     }
 
     public static async Task<bool> GetHoldersTokenBalance(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
@@ -268,7 +266,6 @@ public static class CommandsHandler
         return true;
     }
 
-    //since the solanaendpointbatcher does not show
     public static async Task<bool> DistributeTokensToHoldersDictionary(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var mint = handler.GetPositional(0);
@@ -283,6 +280,9 @@ public static class CommandsHandler
         var sum = 0UL;
         var failedAddresses = new Dictionary<string, ulong>();
         var skipCount = 0;
+
+        SolanaRpcBatchWithCallbacks batcher = new SolanaRpcBatchWithCallbacks(ClientFactory.GetClient(connectionOption.CurrentValue.UnboundedEndpoint));
+
         if (!services.TryGetCliAccount(out var sender)) return false;
         try
         {
@@ -326,7 +326,7 @@ public static class CommandsHandler
                 }
                 else
                 {
-                    if (success)
+                    if (success is not null)
                     {
                         sum += pair.Value;
                     }
