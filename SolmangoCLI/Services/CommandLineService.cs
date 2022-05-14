@@ -65,7 +65,7 @@ public class CommandLineService : IRunner
             .Positional("The token mint to distribute")
             .Positional("The path of the dictionary in format <string, ulong>")
             .Flag("/s", " Skip sending to addresses who already hold the token in the associated token account"))
-            .AddAsync(async (handler) => await CommandsHandler.DistributeTokensToHoldersDictionary(handler, services, logger)));
+            .AddAsync(async (handler) => await CommandsHandler.DistributeTokensToHoldersDictionaryBatch(handler, services, logger)));
 
         // Clean
         Cli.Register(Command.Factory("verify-keypair")

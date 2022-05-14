@@ -363,4 +363,102 @@ public static class CommandsHandler
             }
         }
     }
+
+    public static async Task<bool> DistributeTokensToHoldersDictionaryBatch(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
+    {
+        var mint = handler.GetPositional(0);
+        var path = handler.GetPositional(1);
+        var skip = handler.HasFlag("/s");
+
+        var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
+        var walletPath = services.GetRequiredService<IOptionsMonitor<PathSettings>>();
+        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
+        var rpcScheduler = services.GetRequiredService<IRpcScheduler>();
+        var progressBar = new ConsoleProgressBar(50);
+        var sum = 0UL;
+        var failedAddresses = new Dictionary<string, ulong>();
+        var skipCount = 0;
+        var transactionBatch = new List<Byte[]>();
+        var unsuccesfullTransaction = new List<(string transaction, bool success)>();
+
+        if (!services.TryGetCliAccount(out var sender)) return false;
+        try
+        {
+            if (!Serializer.DeserializeJson<Dictionary<string, ulong>>(path, out var dic) || dic is null)
+            {
+                logger.LogError("Couldn't parse {dictionary}", Path.GetFileName(handler.GetPositional(1)));
+                return false;
+            }
+
+            var progressCount = 0;
+            foreach (var pair in dic)
+            {
+                progressCount++;
+                progressBar.Report((float)progressCount / dic.Count);
+                if (skip)
+                {
+                    var ata = await Solmango.GetAssociatedTokenAccount(rpcClient, pair.Key, mint);
+                    if (ata is not null)
+                    {
+                        var balance = await rpcClient.GetTokenAccountBalanceAsync(ata);
+                        if (balance is not null && balance.Result.Value.AmountUlong > 0)
+                        {
+                            skipCount++;
+                            continue;
+                        }
+                    }
+                }
+                var result = await Solmango.BuildSendSplTokenTransaction(rpcClient, sender, pair.Key, mint, pair.Value);
+                if (result.TryPickT1(out var rpcEx, out var transaction))
+                {
+                    logger.LogError("Rpc Exception in building the transaction", rpcEx.ToString());
+                    failedAddresses.Add(pair.Key, pair.Value);
+                    continue;
+                }
+
+                if (transaction is null)
+                {
+                    logger.LogError("Error in building the transaction");
+                    failedAddresses.Add(pair.Key, pair.Value);
+                    continue;
+                }
+                else
+                {
+                    transactionBatch.Add(transaction);
+                }
+            }
+            var res = await Solmango.SendTransactionBatch(rpcClient, transactionBatch);
+
+            unsuccesfullTransaction = res.FindAll(x => x.success.Equals(false));
+
+            return (unsuccesfullTransaction.Count > 0) && failedAddresses.Count > 0;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Fatal exception: {ex}", ex.ToString());
+            return false;
+        }
+        finally
+        {
+            progressBar.Dispose();
+            if (skip)
+            {
+                logger.LogInformation("Skipped {skipCount} addresses", skipCount);
+            }
+            if (failedAddresses.Count > 0)
+            {
+                logger.LogError("Sent {sum} tokens but failed to send tokens to these addresses: \n {addresses}", sum, string.Join("\n", failedAddresses.Keys));
+                var failPath = Path.GetDirectoryName(path) + Path.AltDirectorySeparatorChar + "failedAddressesLog.json";
+                var txFailPath = Path.GetDirectoryName(path) + Path.AltDirectorySeparatorChar + "failedTxLog.json";
+                Serializer.SerializeJson(failPath, failedAddresses);
+                Serializer.SerializeJson(txFailPath, failedAddresses);
+                logger.LogInformation("Failed addresses -> {path}", failPath);
+                logger.LogInformation("Failed transactions -> {path}", txFailPath);
+            }
+            else
+            {
+                logger.LogInformation("Sent {sum} tokens ", sum);
+            }
+        }
+    }
 }
