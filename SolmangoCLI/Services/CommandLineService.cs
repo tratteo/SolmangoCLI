@@ -19,6 +19,7 @@ public class CommandLineService : IRunner
     {
         this.services = services;
         this.logger = logger;
+
         BuildCli();
     }
 

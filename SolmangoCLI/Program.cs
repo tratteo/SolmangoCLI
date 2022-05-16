@@ -18,6 +18,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<ConnectionSettings>(builder.Configuration.GetSection(ConnectionSettings.Position))
     .Configure<PathSettings>(builder.Configuration.GetSection(PathSettings.Position))
     .AddOfflineRunner<CommandLineService>()
+    .AddSingleton<SolanaEndPointManager>()
     .AddSingleton<IRpcScheduler, BasicRpcScheduler>((services) =>
 {
     var scheduler = new BasicRpcScheduler(1250);

@@ -26,13 +26,13 @@ public static class CommandsHandler
     {
         var configuration = services.GetRequiredService<IConfiguration>();
         var rpcScheduler = services.GetRequiredService<IRpcScheduler>();
-        var connectionSettings = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
+
         handler.GetKeyed("-n", out var name);
         handler.GetKeyed("-s", out var symbol);
         handler.GetKeyed("-u", out var updateAuthority);
 
-        var rpcClient = ClientFactory.GetClient(connectionSettings.CurrentValue.ClusterEndpoint);
-        logger.LogInformation("Scraping on {endpoint} with parameters: name: {name} | symbol: {symbol} | updateAuthority: {updateAuthority}", connectionSettings.CurrentValue.ClusterEndpoint, name, symbol, updateAuthority);
+        var rpcClient = services.GetRpcClient();
+        logger.LogInformation("Scraping on {endpoint} with parameters: name: {name} | symbol: {symbol} | updateAuthority: {updateAuthority}", services.GetEndPoint(), name, symbol, updateAuthority);
         var oneOfMints = rpcScheduler.Schedule(() => Solmango.ScrapeCollectionMints(rpcClient, name, symbol, updateAuthority is not null ? new PublicKey(updateAuthority) : null));
         if (oneOfMints.TryPickT1(out var saturatedEx, out var token))
         {
@@ -124,7 +124,7 @@ public static class CommandsHandler
             }
             else
             {
-                logger.LogInformation("CLI account valid\nPublicKey: {p}\nBalance: {b}", account.PublicKey, res.Result.Value.ToSOL());
+                logger.LogInformation("\nEndPoint: {e}\nCLI account valid\nPublicKey: {p}\nBalance: {b}",services.GetEndPoint(), account.PublicKey, res.Result.Value.ToSOL());
             }
         }
         return;
@@ -133,8 +133,7 @@ public static class CommandsHandler
     public static async Task<bool> GetTokenSupply(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
     {
         var mint = handler.GetPositional(0);
-        var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
-        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
+        var rpcClient = services.GetRpcClient();
         var res = await rpcClient.GetTokenSupplyAsync(mint);
         if (!res.WasRequestSuccessfullyHandled || res.Result is null) return false;
         var supply = res.Result.Value;
@@ -147,8 +146,7 @@ public static class CommandsHandler
         var hashListPath = handler.GetPositional(0);
         var path = handler.GetPositional(1);
         var amountOnly = handler.HasFlag("/amount-only");
-        var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
-        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.UnboundedEndpoint);
+        var rpcClient = services.GetRpcClient();
         try
         {
             Serializer.DeserializeJson<ImmutableList<string>>(hashListPath, out var hashList);
@@ -222,8 +220,7 @@ public static class CommandsHandler
     {
         var mint = handler.GetPositional(0);
         var path = handler.GetPositional(1);
-        var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
-        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
+        var rpcClient = services.GetRpcClient();
         var progressBar = new ConsoleProgressBar(50);
         var progressCount = 0;
 
@@ -273,15 +270,12 @@ public static class CommandsHandler
         var skip = handler.HasFlag("/s");
 
         var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
-        var walletPath = services.GetRequiredService<IOptionsMonitor<PathSettings>>();
-        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
+        var rpcClient = services.GetRpcClient();
         var rpcScheduler = services.GetRequiredService<IRpcScheduler>();
         var progressBar = new ConsoleProgressBar(50);
         var sum = 0UL;
         var failedAddresses = new Dictionary<string, ulong>();
         var skipCount = 0;
-
-        SolanaRpcBatchWithCallbacks batcher = new SolanaRpcBatchWithCallbacks(ClientFactory.GetClient(connectionOption.CurrentValue.UnboundedEndpoint));
 
         if (!services.TryGetCliAccount(out var sender)) return false;
         try
@@ -372,14 +366,14 @@ public static class CommandsHandler
 
         var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
         var walletPath = services.GetRequiredService<IOptionsMonitor<PathSettings>>();
-        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
-        var rpcScheduler = services.GetRequiredService<IRpcScheduler>();
+        var rpcClient = services.GetRpcClient();
+
+        var batcher = new SolanaRpcBatchWithCallbacks(rpcClient);
+        batcher.AutoExecute(Solnet.Rpc.Types.BatchAutoExecuteMode.ExecuteWithCallbackFailures, 20);//reducing batch size in order to prevent blockhash to become obsolete
         var progressBar = new ConsoleProgressBar(50);
         var sum = 0UL;
         var failedAddresses = new Dictionary<string, ulong>();
         var skipCount = 0;
-        var transactionBatch = new List<Byte[]>();
-        var unsuccesfullTransaction = new List<(string transaction, bool success)>();
 
         if (!services.TryGetCliAccount(out var sender)) return false;
         try
@@ -416,22 +410,22 @@ public static class CommandsHandler
                     continue;
                 }
 
-                if (transaction is null)
-                {
-                    logger.LogError("Error in building the transaction");
-                    failedAddresses.Add(pair.Key, pair.Value);
-                    continue;
-                }
-                else
-                {
-                    transactionBatch.Add(transaction);
-                }
+                batcher.SendTransaction(transaction, false, Solnet.Rpc.Types.Commitment.Finalized, (signature, ex) =>
+                  {
+                      if (ex is not null)
+                      {
+                          logger.LogError(ex.Message);
+                          failedAddresses.Add(pair.Key, pair.Value);
+                      }
+                      else
+                      {
+                          sum += pair.Value;
+                      }
+                  });
             }
-            var res = await Solmango.SendTransactionBatch(rpcClient, transactionBatch);
+            batcher.Flush();
 
-            unsuccesfullTransaction = res.FindAll(x => x.success.Equals(false));
-
-            return (unsuccesfullTransaction.Count > 0) && failedAddresses.Count > 0;
+            return failedAddresses.Count <= 0;
         }
         catch (Exception ex)
         {
@@ -449,11 +443,10 @@ public static class CommandsHandler
             {
                 logger.LogError("Sent {sum} tokens but failed to send tokens to these addresses: \n {addresses}", sum, string.Join("\n", failedAddresses.Keys));
                 var failPath = Path.GetDirectoryName(path) + Path.AltDirectorySeparatorChar + "failedAddressesLog.json";
-                var txFailPath = Path.GetDirectoryName(path) + Path.AltDirectorySeparatorChar + "failedTxLog.json";
+
                 Serializer.SerializeJson(failPath, failedAddresses);
-                Serializer.SerializeJson(txFailPath, failedAddresses);
+
                 logger.LogInformation("Failed addresses -> {path}", failPath);
-                logger.LogInformation("Failed transactions -> {path}", txFailPath);
             }
             else
             {
