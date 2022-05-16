@@ -106,5 +106,11 @@ public class CommandLineService : IRunner
             .Positional("The token mint")
             .Positional("The path where to save the result in format <string, ulong>"))
             .AddAsync(async (handler) => await CommandsHandler.GetHoldersTokenBalance(handler, services, logger)));
+        //clean
+        Cli.Register(Command.Factory("change-endpoint")
+            .Description("Changes the current Endpoint to the desired one")
+            .ArgumentsHandler(ArgumentsHandler.Factory()
+            .Positional("First letter of the desired cluster : [mainnet-beta, testnet, devnet, custom-EndPoint]"))
+            .Add((handler) => CommandsHandler.ChangeEndPoint(handler, services, logger)));
     }
 }

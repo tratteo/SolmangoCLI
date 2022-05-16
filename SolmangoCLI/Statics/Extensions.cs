@@ -28,6 +28,12 @@ public static class Extensions
         return rpcClient;
     }
 
+    public static void ChangeEndPoint(this IServiceProvider services, string endPoint)
+    {
+        var connectionOption = services.GetRequiredService<SolanaEndPointManager>();
+        connectionOption.ChangeEndPoint(endPoint);
+    }
+
     public static string GetEndPoint(this IServiceProvider services)
     {
         var connectionOption = services.GetRequiredService<SolanaEndPointManager>();

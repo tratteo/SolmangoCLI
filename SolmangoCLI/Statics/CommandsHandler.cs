@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
+using SolmangoCLI.Services;
 using SolmangoCLI.Settings;
 using SolmangoNET;
 using SolmangoNET.Rpc;
@@ -124,7 +125,7 @@ public static class CommandsHandler
             }
             else
             {
-                logger.LogInformation("\nEndPoint: {e}\nCLI account valid\nPublicKey: {p}\nBalance: {b}",services.GetEndPoint(), account.PublicKey, res.Result.Value.ToSOL());
+                logger.LogInformation("\nEndPoint: {e}\nCLI account valid\nPublicKey: {p}\nBalance: {b}", services.GetEndPoint(), account.PublicKey, res.Result.Value.ToSOL());
             }
         }
         return;
@@ -139,6 +140,12 @@ public static class CommandsHandler
         var supply = res.Result.Value;
         logger.LogInformation("Supply: {supply}, decimals: {decimal}", supply.AmountDouble, supply.Decimals);
         return true;
+    }
+
+    public static void ChangeEndPoint(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
+    {
+        services.ChangeEndPoint(handler.GetPositional(0));
+        logger.LogInformation("Current EndPoint: {e}", services.GetEndPoint());
     }
 
     public static async Task<bool> RetriveHolders(ArgumentsHandler handler, IServiceProvider services, ILogger logger)
