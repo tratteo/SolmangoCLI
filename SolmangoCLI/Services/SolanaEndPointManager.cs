@@ -33,10 +33,10 @@ public class SolanaEndPointManager
 
     public class Cluster
     {
-        public static string DevNet { get => "https://api.devnet.solana.com"; }
+        public static string DevNet => "https://api.devnet.solana.com";
 
-        public static string MainNet { get => "https://api.mainnet-beta.solana.com"; }
+        public static string MainNet => "https://api.mainnet-beta.solana.com";
 
-        public static string CustomEndPoint { get => "https://ssc-dao.genesysgo.net/"; }
+        public static string CustomEndPoint => "https://ssc-dao.genesysgo.net/";
     }
 }
