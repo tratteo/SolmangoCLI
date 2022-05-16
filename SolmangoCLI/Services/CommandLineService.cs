@@ -19,6 +19,7 @@ public class CommandLineService : IRunner
     {
         this.services = services;
         this.logger = logger;
+
         BuildCli();
     }
 
@@ -65,7 +66,7 @@ public class CommandLineService : IRunner
             .Positional("The token mint to distribute")
             .Positional("The path of the dictionary in format <string, ulong>")
             .Flag("/s", " Skip sending to addresses who already hold the token in the associated token account"))
-            .AddAsync(async (handler) => await CommandsHandler.DistributeTokensToHoldersDictionary(handler, services, logger)));
+            .AddAsync(async (handler) => await CommandsHandler.DistributeTokensToHoldersDictionaryBatch(handler, services, logger)));
 
         // Clean
         Cli.Register(Command.Factory("verify-keypair")
@@ -105,5 +106,11 @@ public class CommandLineService : IRunner
             .Positional("The token mint")
             .Positional("The path where to save the result in format <string, ulong>"))
             .AddAsync(async (handler) => await CommandsHandler.GetHoldersTokenBalance(handler, services, logger)));
+        //clean
+        Cli.Register(Command.Factory("change-endpoint")
+            .Description("Changes the current Endpoint to the desired one")
+            .ArgumentsHandler(ArgumentsHandler.Factory()
+            .Positional("First letter of the desired cluster : [mainnet-beta, testnet, devnet, custom-EndPoint]"))
+            .Add((handler) => CommandsHandler.ChangeEndPoint(handler, services, logger)));
     }
 }

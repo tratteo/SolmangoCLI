@@ -8,6 +8,4 @@ public class ConnectionSettings
     //https://ssc-dao.genesysgo.net/
 
     public string ClusterEndpoint { get; set; } = null!;
-
-    public string UnboundedEndpoint { get; set; } = null!;
 }

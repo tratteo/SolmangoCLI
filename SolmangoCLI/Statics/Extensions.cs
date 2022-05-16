@@ -23,9 +23,21 @@ public static class Extensions
 
     public static IRpcClient GetRpcClient(this IServiceProvider services)
     {
-        var connectionOption = services.GetRequiredService<IOptionsMonitor<ConnectionSettings>>();
-        var rpcClient = ClientFactory.GetClient(connectionOption.CurrentValue.ClusterEndpoint);
+        var connectionOption = services.GetRequiredService<SolanaEndPointManager>();
+        var rpcClient = ClientFactory.GetClient(connectionOption.EndPoint);
         return rpcClient;
+    }
+
+    public static void ChangeEndPoint(this IServiceProvider services, string endPoint)
+    {
+        var connectionOption = services.GetRequiredService<SolanaEndPointManager>();
+        connectionOption.ChangeEndPoint(endPoint);
+    }
+
+    public static string GetEndPoint(this IServiceProvider services)
+    {
+        var connectionOption = services.GetRequiredService<SolanaEndPointManager>();
+        return connectionOption.EndPoint;
     }
 
     public static bool TryGetCliAccount(this IServiceProvider services, out Account account)
